@@ -7,6 +7,7 @@ import time
 batarya_voltaji = Gauge('drone_battery_voltage', 'Batarya voltajı (V)', ['drone_id'])
 batarya_yuzdesi = Gauge('drone_battery_remaining', 'Kalan batarya yüzdesi', ['drone_id'])
 irtifa = Gauge('drone_altitude', 'Yerden irtifa (m)', ['drone_id'])
+yer_hizi = Gauge('drone_groundspeed', 'Yer hızı (m/s)', ['drone_id'])
 baglanti_durumu = Gauge('drone_connected', 'Bağlantı durumu (1=bağlı, 0=değil)', ['drone_id'])
 
 DRONE_ID = 'sitl_1'
@@ -42,6 +43,7 @@ def main():
 
         elif tip == 'GLOBAL_POSITION_INT':
             irtifa.labels(drone_id=DRONE_ID).set(mesaj.relative_alt / 1000.0)
-
+        elif tip == 'VFR_HUD':
+            yer_hizi.labels(drone_id=DRONE_ID).set(mesaj.groundspeed)
 if __name__ == '__main__':
     main()
