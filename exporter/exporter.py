@@ -16,6 +16,13 @@ baglanti_durumu = Gauge('drone_connected', 'Bağlantı durumu (1=bağlı, 0=değ
 
 DRONE_ID = 'sitl_1'
 
+# Jamming alarmı kilidi: simülatör jamming'li paketleri aralıklı gönderiyor
+# (ölçüm: paketlerin ~%25'i). Tek pakete bakmak yerine, son şüpheli
+# paketten sonra alarmı JAM_TUTMA_SN saniye boyunca açık tutuyoruz.
+JAM_TUTMA_SN = 10
+jam_durum = {'son': 0.0}
+
+
 def main():
     # Prometheus'un okuyacağı /metrics endpoint'ini başlat (port 8000)
     start_http_server(8000)
@@ -47,15 +54,25 @@ def main():
 
         elif tip == 'GLOBAL_POSITION_INT':
             irtifa.labels(drone_id=DRONE_ID).set(mesaj.relative_alt / 1000.0)
+
         elif tip == 'VFR_HUD':
             yer_hizi.labels(drone_id=DRONE_ID).set(mesaj.groundspeed)
+
         elif tip == 'GPS_RAW_INT':
             uydu = mesaj.satellites_visible
             gps_uydu.labels(drone_id=DRONE_ID).set(0 if uydu == 255 else uydu)
             hdop = mesaj.eph / 100.0
             gps_hdop.labels(drone_id=DRONE_ID).set(99.99 if mesaj.eph == 65535 else hdop)
-            gps_fix.labels(drone_id=DRONE_ID).set(mesaj.fix_type)            
-            jamming_suphesi = mesaj.fix_type < 3 or uydu < 6
-            gps_jamming.labels(drone_id=DRONE_ID).set(1 if jamming_suphesi else 0)
+            gps_fix.labels(drone_id=DRONE_ID).set(mesaj.fix_type)
+
+            # Anlık şüphe: bu paket jamming belirtisi taşıyor mu?
+            anlik_suphe = mesaj.fix_type < 3 or uydu < 6
+            if anlik_suphe:
+                jam_durum['son'] = time.time()
+            # Alarm: son şüpheli paketten bu yana JAM_TUTMA_SN geçmediyse açık
+            jamming_aktif = (time.time() - jam_durum['son']) < JAM_TUTMA_SN
+            gps_jamming.labels(drone_id=DRONE_ID).set(1 if jamming_aktif else 0)
+
+
 if __name__ == '__main__':
     main()
