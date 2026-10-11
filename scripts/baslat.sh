@@ -1,4 +1,5 @@
 #!/bin/bash
+pkill -f exporter.py 2>/dev/null; pkill -f arducopter 2>/dev/null; pkill -f mavproxy 2>/dev/null; sleep 1
 PROJE="$HOME/iha-anomali-tespit"
 export PATH="$HOME/.local/bin:$HOME/ardupilot/Tools/autotest:$PATH"
 

@@ -8,6 +8,9 @@ batarya_voltaji = Gauge('drone_battery_voltage', 'Batarya voltajı (V)', ['drone
 batarya_yuzdesi = Gauge('drone_battery_remaining', 'Kalan batarya yüzdesi', ['drone_id'])
 irtifa = Gauge('drone_altitude', 'Yerden irtifa (m)', ['drone_id'])
 yer_hizi = Gauge('drone_groundspeed', 'Yer hızı (m/s)', ['drone_id'])
+gps_uydu = Gauge('drone_gps_satellites', 'GPS uydu sayısı (numSV)', ['drone_id'])
+gps_hdop = Gauge('drone_gps_hdop', 'GPS yatay doğruluk (HDOP)', ['drone_id'])
+gps_fix = Gauge('drone_gps_fix_type', 'GPS fix tipi (0-1 = fix yok, 3+ = 3D fix)', ['drone_id'])
 baglanti_durumu = Gauge('drone_connected', 'Bağlantı durumu (1=bağlı, 0=değil)', ['drone_id'])
 
 DRONE_ID = 'sitl_1'
@@ -45,5 +48,11 @@ def main():
             irtifa.labels(drone_id=DRONE_ID).set(mesaj.relative_alt / 1000.0)
         elif tip == 'VFR_HUD':
             yer_hizi.labels(drone_id=DRONE_ID).set(mesaj.groundspeed)
+        elif tip == 'GPS_RAW_INT':
+            uydu = mesaj.satellites_visible
+            gps_uydu.labels(drone_id=DRONE_ID).set(0 if uydu == 255 else uydu)
+            hdop = mesaj.eph / 100.0
+            gps_hdop.labels(drone_id=DRONE_ID).set(99.99 if mesaj.eph == 65535 else hdop)
+            gps_fix.labels(drone_id=DRONE_ID).set(mesaj.fix_type)
 if __name__ == '__main__':
     main()
