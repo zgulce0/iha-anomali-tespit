@@ -11,6 +11,7 @@ yer_hizi = Gauge('drone_groundspeed', 'Yer hızı (m/s)', ['drone_id'])
 gps_uydu = Gauge('drone_gps_satellites', 'GPS uydu sayısı (numSV)', ['drone_id'])
 gps_hdop = Gauge('drone_gps_hdop', 'GPS yatay doğruluk (HDOP)', ['drone_id'])
 gps_fix = Gauge('drone_gps_fix_type', 'GPS fix tipi (0-1 = fix yok, 3+ = 3D fix)', ['drone_id'])
+gps_jamming = Gauge('drone_gps_jamming_alarm', 'GPS jamming alarmı (1=jamming şüphesi)', ['drone_id'])
 baglanti_durumu = Gauge('drone_connected', 'Bağlantı durumu (1=bağlı, 0=değil)', ['drone_id'])
 
 DRONE_ID = 'sitl_1'
@@ -53,6 +54,8 @@ def main():
             gps_uydu.labels(drone_id=DRONE_ID).set(0 if uydu == 255 else uydu)
             hdop = mesaj.eph / 100.0
             gps_hdop.labels(drone_id=DRONE_ID).set(99.99 if mesaj.eph == 65535 else hdop)
-            gps_fix.labels(drone_id=DRONE_ID).set(mesaj.fix_type)
+            gps_fix.labels(drone_id=DRONE_ID).set(mesaj.fix_type)            
+            jamming_suphesi = mesaj.fix_type < 3 or uydu < 6
+            gps_jamming.labels(drone_id=DRONE_ID).set(1 if jamming_suphesi else 0)
 if __name__ == '__main__':
     main()
