@@ -3,7 +3,7 @@ from prometheus_client import start_http_server, Gauge
 import time
 
 # --- Prometheus metriklerini tanımla ---
-# Gauge: yukarı da aşağı da gidebilen değerler için (voltaj, irtifa gibi)
+
 batarya_voltaji = Gauge('drone_battery_voltage', 'Batarya voltajı (V)', ['drone_id'])
 batarya_yuzdesi = Gauge('drone_battery_remaining', 'Kalan batarya yüzdesi', ['drone_id'])
 irtifa = Gauge('drone_altitude', 'Yerden irtifa (m)', ['drone_id'])
