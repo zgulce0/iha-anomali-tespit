@@ -1,0 +1,12 @@
+   route:
+     receiver: telegram
+     group_wait: 5s
+     group_interval: 1m
+     repeat_interval: 1h
+
+   receivers:
+     - name: telegram
+       telegram_configs:
+         - bot_token: 'BURAYA_TOKEN'
+           chat_id: BURAYA_CHAT_ID
+           send_resolved: true

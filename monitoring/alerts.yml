@@ -1,0 +1,11 @@
+groups:
+  - name: iha-alarmlari
+    rules:
+      - alert: GPSJamming
+        expr: drone_gps_jamming_alarm == 1
+        for: 5s
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPS jamming şüphesi ({{ $labels.drone_id }})"
+          description: "Uydu sayısı düştü ya da fix kaybedildi."
