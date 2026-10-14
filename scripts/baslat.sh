@@ -14,4 +14,5 @@ trap 'echo "Exporter durduruluyor..."; kill $EXPORTER_PID 2>/dev/null' EXIT
 
 echo "[3/3] SITL başlatılıyor..."
 cd "$HOME/ardupilot/ArduCopter"
-sim_vehicle.py --console --map --out=127.0.0.1:14551
+# -w: önceki oturumdan kalan parametreleri (ör. jamming ayarı) sıfırlar, her açılış temiz başlar
+sim_vehicle.py -w --console --map --out=127.0.0.1:14551
