@@ -17,10 +17,18 @@ baglanti_durumu = Gauge('drone_connected', 'Bağlantı durumu (1=bağlı, 0=değ
 DRONE_ID = 'sitl_1'
 
 # Jamming alarmı kilidi: simülatör jamming'li paketleri aralıklı gönderiyor
-# (ölçüm: paketlerin ~%25'i). Tek pakete bakmak yerine, son şüpheli
-# paketten sonra alarmı JAM_TUTMA_SN saniye boyunca açık tutuyoruz.
+# (ölçüm: 120 saniyede 481 paketin 138'i şüpheli, yaklaşık %29). Tek pakete
+# bakmak yerine, son şüpheli paketten sonra alarmı JAM_TUTMA_SN saniye
+# boyunca açık tutuyoruz.
 JAM_TUTMA_SN = 10
-jam_durum = {'son': 0.0}
+
+# 'hazir': GPS'ten ilk sağlıklı (3D fix ve yeterli uydu) paket gelene kadar
+# False kalır. Açılışta GPS henüz kilitlenmemişken "fix yok, uydu yok" durumu
+# jamming'den ayırt edilemez, o yüzden bu sürede kural alarm üretmez.
+# 'son': son şüpheli paketin zamanı (time.monotonic ile), henüz yoksa None.
+# time.monotonic geri sarmaz; WSL'in "time moved backwards" saat sıçramalarından
+# etkilenmez (time.time etkilenirdi).
+jam_durum = {'son': None, 'hazir': False}
 
 
 def main():
@@ -65,12 +73,23 @@ def main():
             gps_hdop.labels(drone_id=DRONE_ID).set(99.99 if mesaj.eph == 65535 else hdop)
             gps_fix.labels(drone_id=DRONE_ID).set(mesaj.fix_type)
 
-            # Anlık şüphe: bu paket jamming belirtisi taşıyor mu?
-            anlik_suphe = mesaj.fix_type < 3 or uydu < 6
-            if anlik_suphe:
-                jam_durum['son'] = time.time()
+            simdi = time.monotonic()
+            saglikli = mesaj.fix_type >= 3 and uydu >= 6
+
+            # İlk sağlıklı paket: GPS kilitlendi, jamming kuralı bundan sonra devrede
+            if saglikli and not jam_durum['hazir']:
+                jam_durum['hazir'] = True
+                print("GPS ilk 3D fix'i aldı, jamming tespiti devrede.")
+
+            # Anlık şüphe: bu paket jamming belirtisi taşıyor mu? (sadece hazırsa)
+            if jam_durum['hazir'] and not saglikli:
+                jam_durum['son'] = simdi
+
             # Alarm: son şüpheli paketten bu yana JAM_TUTMA_SN geçmediyse açık
-            jamming_aktif = (time.time() - jam_durum['son']) < JAM_TUTMA_SN
+            jamming_aktif = (
+                jam_durum['son'] is not None
+                and (simdi - jam_durum['son']) < JAM_TUTMA_SN
+            )
             gps_jamming.labels(drone_id=DRONE_ID).set(1 if jamming_aktif else 0)
 
 
