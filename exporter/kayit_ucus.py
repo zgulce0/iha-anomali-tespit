@@ -12,7 +12,7 @@ KLASOR = os.path.expanduser('~/iha-anomali-tespit/veri')
 os.makedirs(KLASOR, exist_ok=True)
 DOSYA_ADI = os.path.join(KLASOR, f'ucus_{ETIKET}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv')
 
-BASLIK = 'zaman_sn,etiket,armed,voltaj_v,akim_a,kalan_yuzde,irtifa_m,hiz_ms,gaz_yuzde,tirmanma_ms,motor1_pwm,motor2_pwm,motor3_pwm,motor4_pwm,uydu,enlem,boylam'
+BASLIK = 'zaman_sn,etiket,armed,voltaj_v,akim_a,kalan_yuzde,irtifa_m,hiz_ms,gaz_yuzde,tirmanma_ms,motor1_pwm,motor2_pwm,motor3_pwm,motor4_pwm,uydu,enlem,boylam,mod'
 
 son = {
     'armed': None, 'voltaj': None, 'akim': None, 'kalan': None,
@@ -80,7 +80,7 @@ try:
                 f'{t:.1f}', ETIKET, son['armed'], son['voltaj'], son['akim'], son['kalan'],
                 son['irtifa'], son['hiz'], son['gaz'], son['tirmanma'],
                 son['m1'], son['m2'], son['m3'], son['m4'],
-                son['uydu'], son['enlem'], son['boylam'],
+                son['uydu'], son['enlem'], son['boylam'], baglanti.flightmode,
             ]
             dosya.write(','.join('' if a is None else str(a) for a in alanlar) + '\n')
             dosya.flush()
@@ -91,7 +91,7 @@ try:
                 irtifalar.append(son['irtifa'])
             if simdi - son_yazdirma >= 10:
                 son_yazdirma = simdi
-                print(f"{t:.0f} sn | armed {son['armed']} | V {son['voltaj']} | A {son['akim']} | irtifa {son['irtifa']} | hiz {son['hiz']} | gaz {son['gaz']} | motor {son['m1']} {son['m2']} {son['m3']} {son['m4']} | uydu {son['uydu']}")
+                print(f"{t:.0f} sn | armed {son['armed']} | V {son['voltaj']} | A {son['akim']} | irtifa {son['irtifa']} | hiz {son['hiz']} | gaz {son['gaz']} | motor {son['m1']} {son['m2']} {son['m3']} {son['m4']} | uydu {son['uydu']} | mod {baglanti.flightmode}")
 except KeyboardInterrupt:
     print('Kullanici durdurdu')
 finally:
