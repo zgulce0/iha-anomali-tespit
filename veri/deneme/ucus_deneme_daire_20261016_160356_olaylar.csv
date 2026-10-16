@@ -1,0 +1,28 @@
+zaman_sn,olay
+0.0,tohum 1792155836; plan: motor1_0.95 motor1_0.9
+0.0,param DISARM_DELAY = 60
+0.0,mod GUIDED
+1.0,ARM tamam
+1.0,kalkis komutu; hedef 10 m
+8.6,hedef irtifaya ulasildi (9.24 m)
+8.6,mod LOITER
+13.8,mod CIRCLE
+13.8,kararlasma bekleniyor (10 sn)
+23.8,NORMAL ucus basladi (40 sn)
+63.8,ARIZA BASLIYOR: motor1_0.95
+63.9,param SIM_ENGINE_MUL = 0.95
+63.9,param SIM_ENGINE_FAIL = 1
+94.0,param SIM_ENGINE_FAIL = 0
+94.0,ARIZA BITTI: motor1_0.95
+124.0,ARIZA BASLIYOR: motor1_0.9
+124.0,param SIM_ENGINE_MUL = 0.9
+124.0,param SIM_ENGINE_FAIL = 1
+154.1,param SIM_ENGINE_FAIL = 0
+154.1,ARIZA BITTI: motor1_0.9
+184.1,mod LOITER
+194.3,mod LAND
+217.0,inis tamam; disarm
+217.0,param SIM_ENGINE_FAIL = 0
+217.1,param SIM_ENGINE_MUL = 0.0
+217.1,param SIM_BATT_VOLTAGE = 12.6
+217.1,param SIM_BATT_RES_OHM = 0.01

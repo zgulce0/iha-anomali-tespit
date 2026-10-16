@@ -1,0 +1,20 @@
+zaman_sn,olay
+0.0,tohum 1792155572; plan: batt_res_0.05
+0.0,param DISARM_DELAY = 60
+0.0,mod GUIDED
+5.1,ARM olmadi (GPS / pre-arm bekleniyor olabilir); tekrar deneniyor
+6.0,ARM tamam
+6.0,kalkis komutu; hedef 10 m
+13.6,hedef irtifaya ulasildi (9.14 m)
+13.6,kararlasma bekleniyor (10 sn)
+23.6,NORMAL ucus basladi (40 sn)
+63.6,ARIZA BASLIYOR: batt_res_0.05
+63.6,param SIM_BATT_RES_OHM = 0.05
+93.8,param SIM_BATT_RES_OHM = 0.01
+93.8,ARIZA BITTI: batt_res_0.05
+123.8,mod LAND
+147.0,inis tamam; disarm
+147.0,param SIM_ENGINE_FAIL = 0
+147.0,param SIM_ENGINE_MUL = 0.0
+147.0,param SIM_BATT_VOLTAGE = 12.6
+147.1,param SIM_BATT_RES_OHM = 0.01
