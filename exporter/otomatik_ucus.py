@@ -95,7 +95,7 @@ def sifirla():
 
 def olay(metin):
     t = time.monotonic() - T0
-    print(f'[{t:7.1f} sn] {metin}')
+    print(f'[{t:7.1f} sn] {datetime.now().strftime("%H:%M:%S.%f")[:-3]} {metin}')
     if olay_dosya is not None:
         olay_dosya.write(f'{t:.1f},{metin.replace(",", ";")}\n')  # CSV bozulmasin
         olay_dosya.flush()

@@ -2,6 +2,7 @@ from pymavlink import mavutil
 from prometheus_client import start_http_server, Gauge
 import os
 import time
+from datetime import datetime
 
 from anomali_model import MahalanobisModeli, AnomaliDedektoru
 
@@ -160,9 +161,9 @@ def main():
                 alarm = False
                 model_ozet = f"model: karar yok ({sebep})"
             if alarm and not onceki_alarm:
-                print(f"ANOMALİ ALARMI BAŞLADI | {model_ozet} | motor {son['m1']} {son['m2']} {son['m3']} {son['m4']} | V {son['voltaj']} | A {son['akim']}", flush=True)
+                print(f"{datetime.now():%H:%M:%S} ANOMALİ ALARMI BAŞLADI | {model_ozet} | motor {son['m1']} {son['m2']} {son['m3']} {son['m4']} | V {son['voltaj']} | A {son['akim']}", flush=True)
             elif onceki_alarm and not alarm:
-                print(f"Anomali alarmı bitti | {model_ozet}", flush=True)
+                print(f"{datetime.now():%H:%M:%S} Anomali alarmı bitti | {model_ozet}", flush=True)
             onceki_alarm = alarm
 
         # Kontrol: her 10 saniyede bir defterin içini yaz (flush: log dosyasına hemen düşsün)
