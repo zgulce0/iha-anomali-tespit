@@ -81,7 +81,7 @@ def am_oku(yol, alarm_adi):
     olaylar, mesajlar = [], []
     for satir in open(yol, encoding='utf-8', errors='replace'):
         m = AM_ALARM.match(satir)
-        if m and m.group(2) == alarm_adi:
+        if m and m.group(2) in alarm_adi.split(','):
             olaylar.append((docker_zamani(m.group(1)), m.group(3)))
             continue
         m = AM_TELEGRAM.match(satir)
@@ -193,7 +193,7 @@ def main():
     ap.add_argument('--ucus', required=True)
     ap.add_argument('--am', required=True)
     ap.add_argument('--exporter')
-    ap.add_argument('--alarm', default='DonanimAnomalisi', help='Alertmanager alarm adi')
+    ap.add_argument('--alarm', default='MotorArizasi,BataryaArizasi,DonanimAnomalisi', help='Alertmanager alarm adi (birden fazlaysa virgulle)')
     ap.add_argument('--csv', help='sonuclari bu CSV dosyasina da yaz')
     a = ap.parse_args()
 

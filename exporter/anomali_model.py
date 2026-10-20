@@ -9,6 +9,13 @@ Modeli model/mahalanobis_v1.json dosyasindan yukler ve tek bir olcum satirini pu
 import json
 import math
 
+# Ariza turu kurali (model DEGIL, elle yazilmis basit kural; simulatorun normal bataryasi icin).
+# Normal batarya: voltaj = 12,6 - 0,01 x akim. Batarya arizasinda bu iliski bozulur.
+# Motor arizasinda bozulmaz, sadece bir motorun PWM'i digerlerinden ayrilir.
+BATARYA_BOS_V = 12.6          # akim cekilmiyorken voltaj
+BATARYA_DIRENC_OHM = 0.01     # normal ic direnc: akim basina voltaj dusumu
+BATARYA_ARTIK_ESIK_V = 0.05   # |olculen voltaj - beklenen voltaj| bundan buyukse batarya arizasi
+
 
 class MahalanobisModeli:
     def __init__(self, veri):
@@ -49,6 +56,23 @@ class MahalanobisModeli:
         md = self.mesafe(rj, x)
         esik = self.rejimler[rj]['esik']
         return md, esik, md > esik
+
+    def tur(self, mod, x):
+        """
+        Alarm veren olcumun ariza turu: 'batarya' ya da 'motor1'..'motor4'. Bu modda model yoksa None.
+        x = degerlendir() ile ayni 6 sayi, ayni sirada (4 motor PWM, voltaj, akim).
+          1) voltaj-akim iliskisi bozulduysa -> batarya
+          2) bozulmadiysa -> normal ortalamadan en cok sapan motor
+        """
+        rj = self.rejim(mod)
+        if rj is None:
+            return None
+        voltaj, akim = x[4], x[5]
+        if abs(voltaj - (BATARYA_BOS_V - BATARYA_DIRENC_OHM * akim)) > BATARYA_ARTIK_ESIK_V:
+            return 'batarya'
+        ort = self.rejimler[rj]['ortalama']
+        sapma = [abs(x[i] - ort[i]) for i in range(4)]
+        return 'motor%d' % (sapma.index(max(sapma)) + 1)
 
 
 class AnomaliDedektoru:
@@ -102,3 +126,8 @@ class AnomaliDedektoru:
             return 'olcum eksik', None, None, None
         md, esik, alarm = r
         return None, md, esik, alarm
+
+    def tur(self, d):
+        """Alarm anindaki ariza turu ('batarya' / 'motor1'..'motor4'). d: karar() ile ayni sozluk."""
+        x = [d['m1'], d['m2'], d['m3'], d['m4'], d['voltaj'], d['akim']]
+        return self.model.tur(d['mod'], x)

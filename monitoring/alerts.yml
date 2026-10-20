@@ -10,11 +10,23 @@ groups:
           summary: "GPS jamming şüphesi ({{ $labels.drone_id }})"
           description: "Uydu sayısı düştü ya da fix kaybedildi."
 
-      - alert: DonanimAnomalisi
-        expr: drone_anomaly_score > 1
+      # Model alarm verdiğinde exporter arıza türünü 'tur' etiketiyle yazar (batarya, motor1..motor4).
+      # Her tür ayrı alarm adı alır, Telegram mesajının başlığında arıza türü görünür.
+      # Çarpma (* ... drone_anomaly_score) değeri model skoruna çevirir; mesajda "skor" olarak görünür.
+      - alert: BataryaArizasi
+        expr: (drone_anomaly_type{tur="batarya"} == 1) * on(drone_id) group_left() drone_anomaly_score
         for: 5s
         labels:
           severity: critical
         annotations:
-          summary: "Motor/batarya anomalisi şüphesi ({{ $labels.drone_id }})"
-          description: 'Model skoru {{ $value | printf "%.1f" }} (sınır 1.0). Motor ya da batarya değerleri normal uçuştan sapıyor.'
+          summary: "Batarya arızası şüphesi ({{ $labels.drone_id }})"
+          description: 'Voltaj ile akım arasındaki normal ilişki bozuldu. Model skoru {{ $value | printf "%.1f" }} (sınır 1.0).'
+
+      - alert: MotorArizasi
+        expr: (drone_anomaly_type{tur=~"motor[1-4]"} == 1) * on(drone_id) group_left() drone_anomaly_score
+        for: 5s
+        labels:
+          severity: critical
+        annotations:
+          summary: '{{ reReplaceAll "motor" "Motor " $labels.tur }} arızası şüphesi ({{ $labels.drone_id }})'
+          description: '{{ reReplaceAll "motor" "Motor " $labels.tur }}, diğer motorlardan ayrıldı. Model skoru {{ $value | printf "%.1f" }} (sınır 1.0).'

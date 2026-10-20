@@ -22,6 +22,9 @@ baglanti_durumu = Gauge('drone_connected', 'Bağlantı durumu (1=bağlı, 0=değ
 anomali_skor = Gauge('drone_anomaly_score', 'Modelin skoru: mesafe / alarm eşiği (1.0 = sınır, üstü anomali)', ['drone_id'])
 anomali_alarm = Gauge('drone_anomaly_alarm', 'Donanım anomali alarmı (1=alarm)', ['drone_id'])
 anomali_aktif = Gauge('drone_anomaly_active', 'Model şu an karar veriyor mu (1=evet, 0=kapı kapalı)', ['drone_id'])
+# Alarm sırasında arızanın türü. 5 seri her zaman var; alarmdayken sadece biri 1, diğerleri 0.
+anomali_tur = Gauge('drone_anomaly_type', 'Arıza türü (1=alarm şu an bu türde, 0=değil)', ['drone_id', 'tur'])
+TURLER = ['batarya', 'motor1', 'motor2', 'motor3', 'motor4']
 
 DRONE_ID = 'sitl_1'
 
@@ -51,11 +54,14 @@ JAM_TUTMA_SN = 10
 jam_durum = {'son': None, 'hazir': False}
 
 
-def anomali_yaz(skor, alarm):
-    """skor None ise model karar vermiyor (kapı kapalı): alarm yok, skor boş."""
+def anomali_yaz(skor, alarm, tur=None):
+    """skor None ise model karar vermiyor (kapı kapalı): alarm yok, skor boş.
+    tur: alarm varken arıza türü ('batarya', 'motor1'..'motor4'); alarm yoksa None."""
     anomali_aktif.labels(drone_id=DRONE_ID).set(0 if skor is None else 1)
     anomali_skor.labels(drone_id=DRONE_ID).set(float('nan') if skor is None else skor)
     anomali_alarm.labels(drone_id=DRONE_ID).set(1 if alarm else 0)
+    for t in TURLER:
+        anomali_tur.labels(drone_id=DRONE_ID, tur=t).set(1 if (alarm and t == tur) else 0)
 
 
 def main():
@@ -152,10 +158,12 @@ def main():
         # Model kararı: saniyede bir, defterin son haline bakarak
         if dedektor is not None and an >= sonraki_karar:
             sonraki_karar = an + KARAR_PERIYODU_SN
-            sebep, mesafe, esik, alarm = dedektor.karar(an, dict(son, mod=baglanti.flightmode))
+            durum = dict(son, mod=baglanti.flightmode)
+            sebep, mesafe, esik, alarm = dedektor.karar(an, durum)
             if sebep is None:
-                anomali_yaz(mesafe / esik, alarm)
-                model_ozet = f"model {mesafe:.2f}/{esik:.2f}" + (" ALARM" if alarm else "")
+                tur = dedektor.tur(durum) if alarm else None
+                anomali_yaz(mesafe / esik, alarm, tur)
+                model_ozet = f"model {mesafe:.2f}/{esik:.2f}" + (f" ALARM ({tur})" if alarm else "")
             else:
                 anomali_yaz(None, False)
                 alarm = False
