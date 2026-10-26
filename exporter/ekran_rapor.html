@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Olay Raporu · İHA İzleme</title>
+<style>
+:root{
+  --zemin:#EEF2F6; --kagit:#FFFFFF; --yazi:#0F1720; --yazi2:#475669; --yazi3:#66778A; --cizgi:#D5DDE6; --cizgi2:#E7ECF2;
+  --kirmizi:#C8342A; --kirmizi-acik:#FBE7E4; --mavi:#2563C9; --yesil:#14805E; --yesil-acik:#E2F4EC; --kehribar:#9A6200; --kehribar-acik:#FDF0D6;
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--zemin);color:var(--yazi);font-family:var(--sans);line-height:1.5}
+.sayfa{max-width:1040px;margin:0 auto;padding:24px 24px 56px;display:flex;flex-direction:column;gap:20px}
+.mono{font-family:var(--mono)}
+.arac{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.arac .sol,.arac .sag{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+a.d,button.d{font:600 14px var(--sans);display:inline-flex;align-items:center;gap:8px;padding:9px 16px;min-height:40px;border-radius:999px;border:1px solid var(--cizgi);background:var(--kagit);color:var(--yazi);text-decoration:none;cursor:pointer}
+a.d:hover,button.d:hover{border-color:var(--yazi3)}
+a.d:focus-visible,button.d:focus-visible{outline:2px solid var(--mavi);outline-offset:2px}
+a.d.aktif{background:var(--yazi);color:#fff;border-color:var(--yazi)}
+.kagit{background:var(--kagit);border:1px solid var(--cizgi);border-radius:16px;padding:28px 32px}
+.baslik-blok{display:flex;flex-direction:column;gap:8px}
+.ust-et{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--yazi3)}
+h1{margin:0;font-size:clamp(26px,4vw,36px);line-height:1.15;font-weight:700;letter-spacing:-.01em}
+h2{margin:0 0 14px;font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--yazi2)}
+h3{margin:0;font-size:18px;font-weight:700}
+p{margin:0}
+.alt{color:var(--yazi2);font-size:15px}
+.hap{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.08em;padding:3px 10px;border:1px solid var(--cizgi);border-radius:999px;color:var(--yazi2);white-space:nowrap}
+.hap.dev{color:var(--kirmizi);border-color:#E9B4AE;background:var(--kirmizi-acik)}
+.hap.bit{color:var(--yesil);border-color:#9FD3BF;background:var(--yesil-acik)}
+.hap.mavi{color:var(--mavi);border-color:#B7CBEF}
+.rozetler{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ozet{font-size:18px;line-height:1.55;max-width:70ch}
+.sayilar{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:6px}
+.sayi{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--cizgi2);border-radius:12px;background:#F8FAFC;min-width:0}
+.sayi .e{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--yazi3)}
+.sayi .d{font-family:var(--mono);font-size:22px;font-weight:600}
+.sayi .d.k{color:var(--kirmizi)}
+.sayi .a{font-size:12px;color:var(--yazi3)}
+.kaydir{overflow-x:auto}
+svg{display:block}
+svg text{font-family:var(--sans)}
+.grafik{width:100%;height:auto;min-width:640px}
+.zc{width:100%;height:auto;min-width:760px}
+.dipnot{font-size:13px;color:var(--yazi3);margin-top:8px}
+.alarm{display:flex;flex-direction:column;gap:14px;padding:22px 24px;border:1px solid var(--cizgi);border-left:5px solid var(--kirmizi);border-radius:12px;break-inside:avoid;page-break-inside:avoid}
+.alarm.gps{border-left-color:var(--kehribar)}
+.alarm.belirsiz{border-left-color:var(--kehribar)}
+.alarm-ust{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.no{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--kirmizi);color:#fff;font-weight:700;font-size:14px;flex:none}
+.alarm.gps .no,.alarm.belirsiz .no{background:var(--kehribar)}
+.alarm .zaman{font-family:var(--mono);font-size:14px;color:var(--yazi2)}
+.alarm .cumle{font-size:16px;max-width:75ch}
+.pay-satir{display:flex;flex-direction:column;gap:6px;max-width:520px}
+.pay-ust{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px}
+.pay-ust b{font-family:var(--mono);font-size:18px}
+.pay-iz{height:10px;border-radius:5px;background:var(--cizgi2);overflow:hidden}
+.pay-dolgu{height:100%;background:var(--kirmizi);border-radius:5px}
+.alarm.belirsiz .pay-dolgu,.alarm.gps .pay-dolgu{background:var(--kehribar)}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:560px}
+th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--yazi3);padding:6px 10px 6px 0;border-bottom:1px solid var(--cizgi)}
+td{padding:8px 10px 8px 0;border-bottom:1px solid var(--cizgi2);vertical-align:middle}
+td.m,th.m{text-align:right;font-family:var(--mono)}
+th.m{font-family:var(--sans)}
+tr.on td{font-weight:700;background:var(--kirmizi-acik)}
+td .mini{display:inline-block;height:8px;border-radius:4px;background:var(--kirmizi);vertical-align:middle;min-width:2px}
+.oneri-kutu{padding:10px 14px;background:#F8FAFC;border:1px solid var(--cizgi2);border-radius:10px;font-size:14px}
+.oneri-kutu b{display:block;font-size:11px;letter-spacing:.1em;color:var(--yazi3);margin-bottom:2px}
+.uyari{padding:10px 14px;background:var(--kehribar-acik);border:1px solid #E9CF9A;border-radius:10px;font-size:14px;color:#5C3B00}
+.yontem ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--yazi2)}
+.bos{padding:40px 8px;color:var(--yazi2);font-size:16px}
+.ipucu{position:fixed;pointer-events:none;background:#0F1720;color:#fff;font-size:12px;padding:6px 9px;border-radius:6px;z-index:5;white-space:nowrap}
+@media (max-width:640px){.sayfa{padding:16px}.kagit{padding:20px 16px}.alarm{padding:18px 14px}}
+@media print{
+  body{background:#fff}
+  .sayfa{max-width:none;padding:0;gap:14px}
+  .kagit{border:0;padding:0;border-radius:0;margin-bottom:14px;break-inside:avoid;page-break-inside:avoid}
+  .kagit.alarmlar{break-inside:auto;page-break-inside:auto}
+  h2{break-after:avoid;page-break-after:avoid}
+  .arac,.ipucu{display:none!important}
+  .kaydir{overflow:visible}
+  .grafik,.zc{min-width:0}
+  table{min-width:0}
+}
+</style>
+</head>
+<body>
+<div class="sayfa">
+  <div class="arac">
+    <div class="sol"><a class="d" id="canliBag" href="/">← Canlı ekran</a><span id="secici" class="sol"></span></div>
+    <div class="sag"><span class="alt" id="yenileNot"></span><button type="button" class="d" id="yazdir">Yazdır / PDF olarak kaydet</button></div>
+  </div>
+  <main id="ic"><div class="kagit"><p class="bos">Yükleniyor…</p></div></main>
+</div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+function sayi(x, n, isaretli){
+  if (x === null || x === undefined || Number.isNaN(x)) return "—";
+  const m = Math.abs(x).toFixed(n).replace(".", ",");
+  const sifir = Number(Math.abs(x).toFixed(n)) === 0;
+  if (isaretli) return sifir ? m : (x > 0 ? "+" : "−") + m;
+  return (x < 0 && !sifir ? "−" : "") + m;
+}
+const iki = (v) => String(v).padStart(2, "0");
+function sureYaz(sn){
+  sn = Math.max(0, Math.round(sn || 0));
+  const s = sn % 60, m = Math.floor(sn / 60) % 60, h = Math.floor(sn / 3600);
+  return h ? h + ":" + iki(m) + ":" + iki(s) : m + ":" + iki(s);
+}
+function saatSn(hms){ const p = String(hms || "0:0:0").split(":").map(Number); return p[0] * 3600 + p[1] * 60 + (p[2] || 0); }
+function saatYaz(sn, saniyeli){ sn = ((Math.round(sn) % 86400) + 86400) % 86400; return iki(Math.floor(sn / 3600)) + ":" + iki(Math.floor(sn / 60) % 60) + (saniyeli ? ":" + iki(sn % 60) : ""); }
+function tarihYaz(t){ const p = String(t || "").split("-"); return p.length === 3 ? p[2] + "." + p[1] + "." + p[0] : ""; }
+const sinirla = (v, a, b) => Math.max(a, Math.min(b, v));
+const N = Number(new URLSearchParams(location.search).get("n")) || 0;
+let sonUcus = null;
+
+/* ---------- zaman çizelgesi ---------- */
+function cizelge(u){
+  const W = 960, X0 = 20, toplam = Math.max(u.sure_sn, 30), SIRA = [40, 24, 8];
+  const X = (t) => X0 + sinirla(t, 0, toplam) / toplam * W;
+  let g = '<line x1="' + X0 + '" y1="62" x2="' + (X0 + W) + '" y2="62" stroke="#CBD5E0" stroke-width="3" stroke-linecap="round"/>';
+  const son = SIRA.map(() => -1e9);
+  u.alarmlar.forEach((a) => {
+    const bit = a.bit_sn === null ? u.sure_sn : a.bit_sn, xa = X(a.bas_sn), w = Math.max(X(bit) - xa, 6), gps = a.tip === "jamming";
+    g += '<rect x="' + xa.toFixed(1) + '" y="' + (gps ? 80 : 50) + '" width="' + w.toFixed(1) + '" height="' + (gps ? 9 : 24) + '" rx="4" fill="' + (gps ? "#C98A1B" : "#C8342A") + '"><title>' + esc("Alarm " + a.id + ": " + a.etiket) + '</title></rect>';
+    if (gps) return;
+    const txt = a.id + " · " + a.etiket, uz = txt.length * 7;
+    const mer = sinirla(xa + w / 2, X0 + uz / 2, X0 + W - uz / 2);
+    const sira = son.findIndex((v) => mer - uz / 2 > v + 8);
+    if (sira < 0) return;
+    son[sira] = mer + uz / 2;
+    g += '<text x="' + mer.toFixed(1) + '" y="' + SIRA[sira] + '" text-anchor="middle" font-size="12" font-weight="700" fill="#C8342A">' + esc(txt) + '</text>';
+  });
+  g += '<text x="' + X0 + '" y="110" font-size="12" fill="#475669">' + esc(u.kalkis) + ' kalkış</text>';
+  g += '<text x="' + (X0 + W) + '" y="110" text-anchor="end" font-size="12" fill="#475669">' + (u.devam ? "şimdi" : "iniş " + esc(u.bitis || "")) + '</text>';
+  return '<div class="kaydir"><svg class="zc" viewBox="0 0 1000 120" role="img" aria-label="Uçuş zaman çizelgesi: kırmızı bloklar model alarmları, turuncu şerit GPS alarmları">' + g + '</svg></div>';
+}
+
+/* ---------- skor grafiği (logaritmik) ---------- */
+function skorGrafik(u){
+  const W = 1000, H = 320, L = 58, R = 34, T = 16, B = 36, toplam = Math.max(u.sure_sn, 30), k0 = saatSn(u.kalkis);
+  let seri = u.seri.slice();
+  // çok uzun uçuşta tepe değerleri koruyarak seyrelt
+  if (seri.length > 2000){
+    const kova = Math.ceil(seri.length / 1000), yeni = [];
+    for (let i = 0; i < seri.length; i += kova){
+      const dilim = seri.slice(i, i + kova), dolu = dilim.filter((p) => p[1] !== null);
+      yeni.push(dolu.length ? dolu.reduce((a, b) => (b[1] > a[1] ? b : a)) : dilim[0]);
+    }
+    seri = yeni;
+  }
+  const degerler = seri.map((p) => p[1]).filter((v) => v !== null);
+  const enYuksek = Math.max(100, ...degerler), ymin = 0.1, ymax = Math.pow(10, Math.ceil(Math.log10(enYuksek)));
+  const lg = (v) => Math.log10(sinirla(v, ymin, ymax));
+  const X = (t) => L + sinirla(t, 0, toplam) / toplam * (W - L - R);
+  const Y = (v) => T + (H - T - B) * (1 - (lg(v) - lg(ymin)) / (lg(ymax) - lg(ymin)));
+  let g = "";
+  for (let d = ymin; d <= ymax * 1.001; d *= 10){
+    g += '<line x1="' + L + '" y1="' + Y(d).toFixed(1) + '" x2="' + (W - R) + '" y2="' + Y(d).toFixed(1) + '" stroke="#E3E9F0"/>';
+    g += '<text x="' + (L - 8) + '" y="' + (Y(d) + 4).toFixed(1) + '" text-anchor="end" font-size="12" fill="#475669">' + sayi(d, d < 1 ? 1 : 0) + '</text>';
+  }
+  const adimlar = [10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200], adim = adimlar.find((a) => toplam / a <= 8) || 7200;
+  for (let t = 0; t <= toplam; t += adim){
+    g += '<line x1="' + X(t).toFixed(1) + '" y1="' + T + '" x2="' + X(t).toFixed(1) + '" y2="' + (H - B) + '" stroke="#EEF2F6"/>';
+    g += '<text x="' + X(t).toFixed(1) + '" y="' + (H - 12) + '" text-anchor="middle" font-size="12" fill="#475669">' + saatYaz(k0 + t, adim < 60) + '</text>';
+  }
+  u.alarmlar.forEach((a) => {
+    const bit = a.bit_sn === null ? toplam : a.bit_sn, xa = X(a.bas_sn), w = Math.max(X(bit) - xa, 3);
+    g += '<rect x="' + xa.toFixed(1) + '" y="' + T + '" width="' + w.toFixed(1) + '" height="' + (H - T - B) + '" fill="' + (a.tip === "jamming" ? "#C98A1B" : "#C8342A") + '" opacity="0.13"/>';
+    g += '<text x="' + (xa + w / 2).toFixed(1) + '" y="' + (T + 13) + '" text-anchor="middle" font-size="12" font-weight="700" fill="#C8342A">' + a.id + '</text>';
+  });
+  g += '<line x1="' + L + '" y1="' + Y(1).toFixed(1) + '" x2="' + (W - R) + '" y2="' + Y(1).toFixed(1) + '" stroke="#C8342A" stroke-width="1.5" stroke-dasharray="6 5"/>';
+  g += '<text x="' + (W - R - 4) + '" y="' + (Y(1) - 6).toFixed(1) + '" text-anchor="end" font-size="12" fill="#C8342A">alarm sınırı (1,0)</text>';
+  // çizgi: karar verilmeyen anlarda (null) kopar
+  let parca = [], cizgiler = [];
+  seri.forEach((p) => { if (p[1] === null){ if (parca.length) cizgiler.push(parca); parca = []; } else parca.push(X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1)); });
+  if (parca.length) cizgiler.push(parca);
+  cizgiler.forEach((c) => { g += c.length > 1 ? '<polyline fill="none" stroke="#2563C9" stroke-width="2" stroke-linejoin="round" points="' + c.join(" ") + '"/>' : '<circle cx="' + c[0].split(",")[0] + '" cy="' + c[0].split(",")[1] + '" r="2" fill="#2563C9"/>'; });
+  g += '<g id="imlec" style="display:none"><line id="imlecC" y1="' + T + '" y2="' + (H - B) + '" stroke="#0F1720" stroke-width="1"/><circle id="imlecN" r="4.5" fill="#2563C9" stroke="#fff" stroke-width="2"/></g>';
+  g += '<rect id="imlecAlan" x="' + L + '" y="' + T + '" width="' + (W - L - R) + '" height="' + (H - T - B) + '" fill="transparent"/>';
+  const svg = '<svg class="grafik" id="skorSvg" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Model skoru zaman içinde, logaritmik eksen. Alarm sınırı 1. Kırmızı bölgeler alarm süreleri.">' + g + '</svg>';
+  return {svg, seri, L, W, R, toplam, k0, X, Y};
+}
+function imlecKur(gr){
+  const svg = $("skorSvg"); if (!svg) return;
+  const alan = $("imlecAlan"), imlec = $("imlec"), cizgi = $("imlecC"), nokta = $("imlecN");
+  let ipucu = document.querySelector(".ipucu");
+  if (!ipucu){ ipucu = document.createElement("div"); ipucu.className = "ipucu"; ipucu.hidden = true; document.body.appendChild(ipucu); }
+  const dolu = gr.seri.filter((p) => p[1] !== null);
+  alan.addEventListener("pointermove", (e) => {
+    if (!dolu.length) return;
+    const r = svg.getBoundingClientRect(), vx = (e.clientX - r.left) / r.width * gr.W;
+    const t = (vx - gr.L) / (gr.W - gr.L - gr.R) * gr.toplam;
+    let en = dolu[0];
+    for (const p of dolu) if (Math.abs(p[0] - t) < Math.abs(en[0] - t)) en = p;
+    const x = gr.X(en[0]);
+    imlec.style.display = "";
+    cizgi.setAttribute("x1", x); cizgi.setAttribute("x2", x);
+    nokta.setAttribute("cx", x); nokta.setAttribute("cy", gr.Y(en[1]));
+    ipucu.hidden = false;
+    ipucu.textContent = saatYaz(gr.k0 + en[0], true) + " · skor " + sayi(en[1], 2) + "×";
+    ipucu.style.left = Math.min(e.clientX + 14, innerWidth - 190) + "px"; ipucu.style.top = (e.clientY - 34) + "px";
+  });
+  alan.addEventListener("pointerleave", () => { imlec.style.display = "none"; ipucu.hidden = true; });
+}
+
+/* ---------- alarm kartları ---------- */
+function alarmKart(a, u){
+  const k = a.kanit || {}, gps = a.tip === "jamming", belirsiz = a.tip === "belirsiz";
+  const bit = a.bit_sn === null ? u.sure_sn : a.bit_sn, sure = Math.round(bit - a.bas_sn);
+  const k0 = saatSn(u.kalkis);
+  let govde = "";
+  if (gps){
+    govde += '<div class="kaydir"><table><thead><tr><th>ÖLÇÜM</th><th class="m">DEĞER</th><th class="m">GEREKEN</th></tr></thead><tbody>' +
+      '<tr class="on"><td>Uydu sayısı</td><td class="m">' + esc(k.uydu === null || k.uydu === undefined ? "—" : k.uydu) + '</td><td class="m">en az 6</td></tr>' +
+      '<tr class="on"><td>GPS fix tipi</td><td class="m">' + esc(k.fix === null || k.fix === undefined ? "—" : k.fix) + '</td><td class="m">en az 3 (3D fix)</td></tr></tbody></table></div>';
+  } else if (k.sinyaller && k.sinyaller.length){
+    const maks = Math.max(...k.sinyaller.map((s) => Math.max(s.pay, 0)), 0.0001);
+    govde += '<div class="kaydir"><table><thead><tr><th>SİNYAL</th><th class="m">ÖLÇÜLEN</th><th class="m">NORMAL</th><th class="m">SAPMA</th><th class="m">NORMAL BANT</th><th>ALARM PAYI</th></tr></thead><tbody>' +
+      k.sinyaller.map((s) => {
+        const v = s.birim === "V" ? 2 : s.birim === "A" ? 1 : 0, ana = s.pay >= 0.2;
+        const bant = s.bant_alt === null || s.bant_alt === undefined ? "—" : sayi(s.bant_alt, 2) + " – " + sayi(s.bant_ust, 2);
+        return '<tr class="' + (ana ? "on" : "") + '"><td>' + esc(s.etiket) + '</td><td class="m">' + sayi(s.olculen, v) + " " + esc(s.birim) + '</td><td class="m">' + sayi(s.normal, v) + '</td><td class="m">' + sayi(s.sapma, v, true) + '</td><td class="m">' + bant + '</td><td style="white-space:nowrap">' + (s.pay > 0.004 ? '<span class="mini" style="width:' + Math.round(Math.max(s.pay, 0) / maks * 120) + 'px"></span> ' : "") + '<span class="mono">%' + sayi(Math.max(s.pay, 0) * 100, 0) + '</span></td></tr>';
+      }).join("") + '</tbody></table></div>';
+  }
+  let pay = "";
+  if (k.guven !== null && k.guven !== undefined){
+    pay = '<div class="pay-satir"><div class="pay-ust"><span>Teşhis payı · ' + esc(k.guven_kaynak) + '</span><b>%' + sayi(k.guven * 100, 0) + '</b></div><div class="pay-iz"><div class="pay-dolgu" style="width:' + sinirla(k.guven * 100, 0, 100).toFixed(0) + '%"></div></div><span class="dipnot" style="margin:0">Alarm skorunun bu sinyalden gelen kısmı. Olasılık değildir.</span></div>';
+  }
+  const oneri = k.oneri ? '<div class="oneri-kutu"><b>ÖNERİ (BASİT KURAL, DOĞRULANMADI)</b>' + esc(k.oneri.metin) + " " + esc(k.oneri.alt || "") + '</div>' : "";
+  const uyari = belirsiz ? '<div class="uyari">Model sapma gördü ama nedenini güvenle ayırt edemedi (iki kural ayrıştı ya da sapma çok küçük). Bu yüzden ekran bir neden iddia etmedi. Kısa süreli alarmlar çoğunlukla arıza geri alınırken değerlerin normale dönüş anıdır.</div>' : "";
+  const tepe = a.tepe_skor !== null && a.tepe_skor !== undefined ? "tepe skor " + sayi(a.tepe_skor, 2) + "× (" + saatYaz(k0 + a.tepe_t, true) + ")" : "model skoru bu alarmı değerlendirmez";
+  return '<article class="alarm' + (gps ? " gps" : belirsiz ? " belirsiz" : "") + '"><div class="alarm-ust"><span class="no">' + a.id + '</span><h3>' + esc(a.baslik || "Alarm") + '</h3>' +
+    '<span class="hap ' + (a.bit === null ? "dev" : "bit") + '">' + (a.bit === null ? "● devam ediyor" : "✓ bitti") + '</span></div>' +
+    '<div class="zaman">' + esc(a.bas) + " – " + esc(a.bit || "şimdi") + " · " + sureYaz(sure) + " · " + tepe + '</div>' +
+    (k.cumle ? '<p class="cumle">' + esc(k.cumle) + '</p>' : "") + uyari + pay + govde + oneri + '</article>';
+}
+
+/* ---------- sayfa ---------- */
+function ozetCumle(u){
+  const s = u.alarmlar;
+  if (!s.length) return "Bu uçuşta alarm olmadı.";
+  const say = {};
+  s.forEach((a) => { say[a.etiket] = (say[a.etiket] || 0) + 1; });
+  const tur = Object.keys(say).map((k) => k + (say[k] > 1 ? " (" + say[k] + " kez)" : "")).join(", ");
+  const en = s.reduce((a, b) => ((b.bit_sn === null ? u.sure_sn : b.bit_sn) - b.bas_sn > (a.bit_sn === null ? u.sure_sn : a.bit_sn) - a.bas_sn ? b : a));
+  return u.alarm_adet + " alarm oldu, toplam süre " + sureYaz(u.alarm_toplam_sn) + ". Alarm türleri: " + tur + ". En uzun alarm: " + en.etiket + " (" + sureYaz(u.alarm_en_uzun_sn) + ").";
+}
+function sayiKutu(e, d, a, k){ return '<div class="sayi"><span class="e">' + esc(e) + '</span><span class="d ' + (k || "") + '">' + esc(d) + '</span>' + (a ? '<span class="a">' + esc(a) + '</span>' : "") + '</div>'; }
+function ciz(g){
+  if (!g.ucus){
+    $("ic").innerHTML = '<div class="kagit"><div class="baslik-blok"><span class="ust-et">OLAY RAPORU</span><h1>Henüz uçuş kaydı yok</h1></div><p class="bos">Motorlar çalışıp drone havalandığında kayıt başlar. Rapor, inişten sonra da bu adreste durur. (Kayıt bellektedir: exporter kapanınca silinir.)</p></div>';
+    $("secici").innerHTML = ""; return;
+  }
+  const u = g.ucus, modelSn = u.seri.filter((p) => p[1] !== null).length, kapsam = u.seri.length ? Math.round(modelSn / u.seri.length * 100) : 0;
+  const enSkor = Math.max(0, ...u.seri.filter((p) => p[1] !== null).map((p) => p[1]), ...u.alarmlar.map((a) => a.tepe_skor || 0));
+  let sec = "";
+  for (let i = 0; i < g.adet; i++) sec += '<a class="d' + (i === g.n ? " aktif" : "") + '" href="/rapor?n=' + i + '">' + (i === 0 ? "Son uçuş" : i + " önceki") + '</a>';
+  $("secici").innerHTML = g.adet > 1 ? sec : "";
+  const batarya = u.batarya_ilk !== null && u.batarya_ilk !== undefined ? "%" + u.batarya_ilk + " → %" + u.batarya_son : "—";
+  const html =
+    '<section class="kagit"><div class="baslik-blok"><div class="rozetler"><span class="ust-et">OLAY RAPORU</span><span class="hap mavi">SİMÜLASYON</span><span class="hap ' + (u.devam ? "dev" : "bit") + '">' + (u.devam ? "● uçuş sürüyor (anlık rapor)" : "✓ uçuş bitti") + '</span></div>' +
+    '<h1>' + esc(g.drone_id || "") + ' · ' + esc(tarihYaz(u.tarih)) + ' · ' + esc(u.kalkis) + (u.devam ? "" : " – " + esc(u.bitis)) + '</h1>' +
+    '<p class="ozet">' + esc(ozetCumle(u)) + '</p></div>' +
+    '<div class="sayilar" style="margin-top:18px">' + sayiKutu("ALARM", String(u.alarm_adet), "", u.alarm_adet ? "k" : "") + sayiKutu("TOPLAM ALARM SÜRESİ", sureYaz(u.alarm_toplam_sn)) +
+    sayiKutu("EN UZUN ALARM", sureYaz(u.alarm_en_uzun_sn)) + sayiKutu("UÇUŞ SÜRESİ", sureYaz(u.sure_sn)) +
+    sayiKutu("EN YÜKSEK SKOR", enSkor ? sayi(enSkor, 2) + "×" : "—", "alarm sınırı 1,0×") + sayiKutu("EN YÜKSEK İRTİFA", sayi(u.irtifa_max, 1) + " m") +
+    sayiKutu("BATARYA", batarya, "başta → sonda") + sayiKutu("MODEL İZLEDİ", "%" + kapsam, "uçuşun bu kadarında karar verebildi") + '</div></section>' +
+    '<section class="kagit"><h2>UÇUŞ ZAMAN ÇİZELGESİ</h2>' + cizelge(u) + '<p class="dipnot">Kırmızı bloklar model alarmları, turuncu şerit GPS jamming alarmlarıdır. Numaralar aşağıdaki alarm kartlarıyla aynıdır.</p></section>' +
+    '<section class="kagit"><h2>MODEL SKORU ZAMAN İÇİNDE</h2><div class="kaydir" id="grafikAlan"></div><p class="dipnot">Skor = Mahalanobis mesafesi ÷ modelin eşiği (logaritmik eksen). 1\'in üstü alarmdır. Çizgideki boşluklar modelin karar vermediği anlardır (yerde, kalkışta, mod geçişlerinde; irtifa en az ' + sayi(u.min_irtifa, 0) + ' m ve 5 sn sabit uçuş gerekir).</p></section>' +
+    '<section class="kagit alarmlar"><h2>ALARMLAR (' + u.alarmlar.length + ')</h2>' + (u.alarmlar.length ? '<div style="display:flex;flex-direction:column;gap:16px">' + u.alarmlar.map((a) => alarmKart(a, u)).join("") + '</div>' : '<p class="alt">Bu uçuşta alarm kaydı yok.</p>') + '</section>' +
+    '<section class="kagit yontem"><h2>YÖNTEM VE SINIRLAR</h2><ul>' +
+    '<li>Bu bir simülasyon kaydıdır (ArduPilot SITL). Kayıt, motorlar çalışınca (armed) başlar; exporter uçuş sırasında başladıysa kayıt o andan başlar.</li>' +
+    '<li>Neden, iki ayrı kuralın çapraz kontrolüyle belirlenir (tür kuralı ve modelin sinyal payı). Biri ayrışırsa "neden ayırt edilemedi" denir.</li>' +
+    '<li>Teşhis payı bir olasılık değildir: alarm skorunun seçilen sinyalden gelen kısmını gösterir.</li>' +
+    '<li>"Olası neden" yalnızca simülatörde tanımlı arıza türlerini (tek motor, batarya) ayırt eder; voltaj düşüşü ile iç direnç artışı aynı izi bırakır.</li>' +
+    '<li>Normal bant, modelin öğrendiği ortalama ± 3 standart sapmadır (voltaj ve akım için). Simülatörde bu bant çok dardır.</li>' +
+    '<li>Öneri metinleri basit kurallardır ve henüz doğrulanmadı. Kayıt bellektedir; exporter kapanınca silinir (en fazla 5 uçuş).</li></ul></section>';
+  $("ic").innerHTML = html;
+  const gr = skorGrafik(u);
+  $("grafikAlan").innerHTML = gr.svg;
+  imlecKur(gr);
+}
+/* Hata iki ayrı yerden gelebilir: veri alınamadı (sunucu/adres) ya da veri geldi ama çizilirken kod hata verdi.
+   İkisi ayrı yazılır; ayrıntı ve sayfa adresi de gösterilir ki sebep tahmin edilmesin. */
+function hataGoster(baslik, e){
+  try { console.error(e); } catch (x) {}
+  $("ic").innerHTML = '<div class="kagit"><p class="bos">' + esc(baslik) + '</p>' +
+    '<p class="bos mono" style="padding-top:0;font-size:13px;white-space:pre-wrap">Ayrıntı: ' + esc((e && (e.stack || e.message)) || e) + '\nSayfa adresi: ' + esc(location.href) + '</p></div>';
+}
+async function yukle(){
+  let g;
+  try {
+    const r = await fetch("/gecmis?n=" + N, {cache: "no-store"});
+    if (!r.ok) throw new Error("Sunucu " + r.status + " döndürdü");
+    g = await r.json();
+  } catch (e) {
+    hataGoster("Rapor verisi alınamadı. Sayfa exporter'ın adresinden (http://localhost:8088/rapor) açılmış olmalı ve exporter çalışıyor olmalı.", e);
+    return;
+  }
+  try {
+    const imza = JSON.stringify(g);
+    if (imza !== sonUcus){ sonUcus = imza; ciz(g); }
+    $("yenileNot").textContent = g.ucus && g.ucus.devam ? "Uçuş sürüyor: sayfa 5 sn'de bir yenilenir." : "";
+    if (g.ucus && g.ucus.devam) setTimeout(yukle, 5000);
+  } catch (e) {
+    hataGoster("Veri geldi ama rapor çizilirken hata oldu.", e);
+  }
+}
+$("yazdir").addEventListener("click", () => window.print());
+/* Rapor canlı ekrandan yeni sekmede açıldıysa "Canlı ekran" bu sekmeyi kapatıp canlı ekrana döner; böylece ikinci bir canlı ekran
+   açılıp sesli uyarılar üst üste binmez. Adres çubuğundan açıldıysa aynı sekmede canlı ekrana gider. */
+$("canliBag").addEventListener("click", (ev) => {
+  try {
+    if (window.opener && !window.opener.closed){
+      ev.preventDefault();
+      try { window.opener.focus(); } catch (e) {}
+      window.close();
+      setTimeout(() => { location.href = "/"; }, 400);   /* tarayıcı kapatmaya izin vermediyse düğme ölü kalmasın */
+    }
+  } catch (e) {}
+});
+yukle();
+</script>
+</body>
+</html>

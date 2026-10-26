@@ -5,6 +5,8 @@ import time
 from datetime import datetime
 
 from anomali_model import MahalanobisModeli, AnomaliDedektoru
+from aciklama import Aciklayici
+from ekran import EkranDurumu, sunucu_baslat
 
 # --- Prometheus metriklerini tanımla ---
 
@@ -37,7 +39,9 @@ KARAR_PERIYODU_SN = 1.0
 # günceller. Model karar verirken hepsine birlikte bakacak.
 # None = henüz hiç gelmedi.
 son = {'armed': None, 'irtifa': None, 'voltaj': None, 'akim': None,
-       'm1': None, 'm2': None, 'm3': None, 'm4': None}
+       'm1': None, 'm2': None, 'm3': None, 'm4': None,
+       'uydu': None, 'fix': None,   # uydu/fix: sadece operatör ekranı için
+       'batarya': None, 'hiz': None}   # kalan batarya % ve yer hızı: sadece operatör ekranı için
 
 # Jamming alarmı kilidi: simülatör jamming'li paketleri aralıklı gönderiyor
 # (ölçüm: 120 saniyede 481 paketin 138'i şüpheli, yaklaşık %29). Tek pakete
@@ -84,6 +88,12 @@ def main():
     except (OSError, ValueError, KeyError) as hata:
         dedektor = None
         print(f"UYARI: anomali modeli yüklenemedi ({hata}); sadece jamming kuralı çalışacak.")
+    # Operatör ekranı (salt okunur web sayfası): http://localhost:8088/
+    ekran = None
+    if dedektor is not None:
+        ekran = EkranDurumu(Aciklayici(dedektor.model), DRONE_ID, os.environ.get('GRAFANA_PANEL_URL', ''))
+        _, ekran_port = sunucu_baslat(ekran)
+        print(f"Operatör ekranı: http://localhost:{ekran_port}/")
     sonraki_karar = time.monotonic()
     onceki_alarm = False
     model_ozet = 'model: henüz karar yok'
@@ -95,6 +105,8 @@ def main():
             # 5 saniye içinde hiç veri gelmediyse, bağlantı kopmuş olabilir
             baglanti_durumu.labels(drone_id=DRONE_ID).set(0)
             anomali_yaz(None, False)  # veri yokken model de karar veremez
+            if ekran is not None:
+                ekran.baglanti_yok(datetime.now())
             continue
 
         baglanti_durumu.labels(drone_id=DRONE_ID).set(1)
@@ -105,6 +117,7 @@ def main():
                 batarya_voltaji.labels(drone_id=DRONE_ID).set(mesaj.voltages[0] / 1000.0)
                 son['voltaj'] = round(mesaj.voltages[0] / 1000.0, 3)
             batarya_yuzdesi.labels(drone_id=DRONE_ID).set(mesaj.battery_remaining)
+            son['batarya'] = None if mesaj.battery_remaining == -1 else mesaj.battery_remaining
             # akım: santiamper (cA) gelir, -1 = bilinmiyor
             son['akim'] = None if mesaj.current_battery == -1 else round(mesaj.current_battery / 100.0, 2)
 
@@ -114,6 +127,7 @@ def main():
 
         elif tip == 'VFR_HUD':
             yer_hizi.labels(drone_id=DRONE_ID).set(mesaj.groundspeed)
+            son['hiz'] = round(mesaj.groundspeed, 2)
 
         elif tip == 'HEARTBEAT':
             # Yer istasyonunun (GCS) kalp atışını sayma, sadece drone'unkini
@@ -130,6 +144,8 @@ def main():
         elif tip == 'GPS_RAW_INT':
             uydu = mesaj.satellites_visible
             gps_uydu.labels(drone_id=DRONE_ID).set(0 if uydu == 255 else uydu)
+            son['uydu'] = 0 if uydu == 255 else uydu
+            son['fix'] = mesaj.fix_type
             hdop = mesaj.eph / 100.0
             gps_hdop.labels(drone_id=DRONE_ID).set(99.99 if mesaj.eph == 65535 else hdop)
             gps_fix.labels(drone_id=DRONE_ID).set(mesaj.fix_type)
@@ -173,6 +189,12 @@ def main():
             elif onceki_alarm and not alarm:
                 print(f"{datetime.now():%H:%M:%S} Anomali alarmı bitti | {model_ozet}", flush=True)
             onceki_alarm = alarm
+
+            if ekran is not None:
+                jam_simdi = jam_durum['son'] is not None and (an - jam_durum['son']) < JAM_TUTMA_SN
+                ekran.guncelle(datetime.now(), son, baglanti.flightmode, sebep,
+                               (mesafe / esik) if sebep is None else None, alarm, jam_simdi,
+                               son['uydu'], son['fix'], tur if sebep is None else None)
 
         # Kontrol: her 10 saniyede bir defterin içini yaz (flush: log dosyasına hemen düşsün)
         if an - son_yazdirma >= 10:

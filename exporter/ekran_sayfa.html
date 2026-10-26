@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>İHA İzleme</title>
+<style>
+:root{
+  --zemin:#070B11; --kart:#0D131B; --kart2:#121A24; --cizgi:#1C2836; --cizgi2:#2A3A4D; --iz:#18222E;
+  --yazi:#E8EEF5; --yazi2:#A3B4C6; --yazi3:#7E92A8;
+  --cyan:#5AC8FA; --yesil:#3FD6A0; --kehribar:#FFB84D; --kirmizi:#FF5C4D; --kirmizi-yazi:#FF8A7F; --gri:#AAB6C3;
+  --yesil-koyu:#164A3A; --kirmizi-koyu:#3A1618;
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;
+  --ana:#AAB6C3; --ana-yazi:#0E141B;
+}
+body[data-durum="normal"]{--ana:var(--yesil); --ana-yazi:#04140E}
+body[data-durum="alarm"],body[data-durum="jamming"]{--ana:var(--kirmizi); --ana-yazi:#1B0907}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:dark}
+body{margin:0;background-color:var(--zemin);color:var(--yazi);font-family:var(--sans);
+  background-image:linear-gradient(rgba(90,200,250,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(90,200,250,.035) 1px,transparent 1px);
+  background-size:44px 44px}
+.sayfa{max-width:1376px;margin:0 auto;padding:22px 32px 40px;display:flex;flex-direction:column;gap:20px}
+.serit{height:5px;border-radius:3px;background:var(--kirmizi)}
+.mono{font-family:var(--mono)}
+button,a.dugme{font-family:inherit}
+
+/* üst çubuk */
+.ust{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px}
+.sol,.sag{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.marka{font-size:15px;font-weight:700;letter-spacing:.16em}
+.id{font-family:var(--mono);font-size:13px;color:var(--yazi3)}
+.hap{font-size:12px;font-weight:600;letter-spacing:.08em;padding:4px 11px;border:1px solid var(--cizgi2);border-radius:999px;color:var(--yazi2);white-space:nowrap}
+.hap.cyan{color:var(--cyan);border-color:#1D4457}
+.hap.yesil{color:var(--yesil);border-color:#1F5A47}
+.hap.beyaz{color:var(--yazi)}
+.ses{display:inline-flex;align-items:center;gap:8px;font:600 13px var(--sans);color:var(--yazi);background:var(--kart2);border:1px solid var(--cizgi2);border-radius:999px;padding:8px 16px;min-height:40px;cursor:pointer}
+.ses:hover{border-color:var(--yazi3)}
+.ses:focus-visible,a.dugme:focus-visible,a.baglanti:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.ses.bekliyor{border-color:var(--kehribar);color:var(--kehribar)}
+.ses.kapali{color:var(--yazi2)}
+a.ses{text-decoration:none}
+.ses-yazi-kutu{display:grid}
+.ses-yazi-kutu>span{grid-area:1/1}
+#sesYazi{justify-self:center}
+.ses-boyut{visibility:hidden;height:0;overflow:hidden;white-space:nowrap}
+.ses-sec{font:600 13px var(--sans);color:var(--yazi);background:var(--kart2);border:1px solid var(--cizgi2);border-radius:999px;padding:8px 12px;min-height:40px;max-width:210px;cursor:pointer}
+.ses-sec:hover{border-color:var(--yazi3)}
+.ses-sec:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.ses-sec option{background:var(--kart2);color:var(--yazi)}
+.canli{display:inline-flex;align-items:center;gap:9px;font-size:13px;color:var(--yazi2)}
+.nokta{width:8px;height:8px;border-radius:50%;background:var(--yesil);position:relative}
+.nokta::after{content:"";position:absolute;inset:0;border-radius:50%;border:1px solid var(--yesil);animation:nabiz 1.6s ease-out infinite}
+.nokta.kapali{background:var(--gri)}
+.nokta.kapali::after{display:none}
+.ses-not{font-size:12px;color:var(--yazi3);max-width:46ch}
+
+/* kahraman: durum + öneri */
+.kahraman{display:flex;flex-wrap:wrap;gap:20px;align-items:stretch}
+.durum-kart{flex:1 1 560px;min-width:0;display:flex;gap:26px;align-items:flex-start;padding:28px 32px;background:var(--kart);border:1px solid var(--cizgi);border-radius:20px}
+body[data-durum="alarm"] .durum-kart,body[data-durum="jamming"] .durum-kart{border-color:#5A2326;box-shadow:0 0 0 1px rgba(255,92,77,.18),0 0 70px rgba(255,92,77,.12)}
+.ikon{flex:none;width:104px;height:104px}
+.ikon .zemin{fill:#141C26;stroke:var(--gri);stroke-width:3}
+body[data-durum="normal"] .ikon .zemin{fill:#0F2A22;stroke:var(--yesil)}
+body[data-durum="alarm"] .ikon .zemin,body[data-durum="jamming"] .ikon .zemin{fill:#2C1215;stroke:var(--kirmizi)}
+.ikon .glif{display:none;fill:none;stroke-linecap:round;stroke-linejoin:round}
+body[data-durum="normal"] .ikon .g-tamam{display:block;stroke:var(--yesil);stroke-width:5.5}
+body[data-durum="alarm"] .ikon .g-uyari,body[data-durum="jamming"] .ikon .g-uyari{display:block;stroke:var(--kirmizi);stroke-width:3.4}
+body[data-durum="izlenemiyor"] .ikon .g-dur,body[data-durum="baglanti_yok"] .ikon .g-dur{display:block;stroke:var(--gri);stroke-width:5}
+.ikon .dalga{display:none;fill:none;stroke:var(--kirmizi);stroke-width:2;transform-box:fill-box;transform-origin:center}
+body[data-durum="alarm"] .ikon .dalga,body[data-durum="jamming"] .ikon .dalga{display:block;animation:puls 1.6s ease-out infinite}
+.metin{display:flex;flex-direction:column;gap:12px;min-width:0;flex:1}
+.etiket-satir{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.etiket{font-size:12px;font-weight:700;letter-spacing:.1em;padding:4px 11px;border-radius:999px;background:var(--ana);color:var(--ana-yazi);border:1px solid var(--ana)}
+.alt-bilgi{font-family:var(--mono);font-size:14px;color:var(--yazi2)}
+h1{margin:0;font-size:clamp(30px,4.2vw,52px);line-height:1.05;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.cumle{margin:0;font-size:19px;line-height:1.5;color:var(--yazi2);max-width:62ch}
+.ek{font-size:16px;font-weight:600;color:var(--kirmizi-yazi)}
+.pay{display:flex;flex-direction:column;gap:7px;max-width:560px}
+.pay-ust{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.e{font-size:12px;font-weight:600;letter-spacing:.1em;color:var(--yazi3)}
+.pay-ust .mono{font-size:22px;font-weight:600;color:var(--kirmizi-yazi)}
+.pay-iz{height:12px;border-radius:6px;background:var(--iz);overflow:hidden}
+.pay-dolgu{height:100%;background:var(--kirmizi);border-radius:6px;transition:width .4s}
+.pay-alt{font-size:13px;color:var(--yazi2)}
+.cipler{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.cip{display:flex;flex-direction:column;gap:3px;padding:10px 16px 11px;background:var(--kart2);border:1px solid var(--cizgi2);border-radius:12px;min-width:0}
+.cip .e{color:var(--yazi3)}
+.cip .d{font-family:var(--mono);font-size:19px;font-weight:600}
+.d.k{color:var(--kirmizi-yazi)} .d.y{color:var(--yesil)}
+
+.oneri{flex:0 1 380px;min-width:260px;display:flex;flex-direction:column;justify-content:space-between;gap:18px;padding:28px 30px;background:var(--ana);color:var(--ana-yazi);border-radius:20px}
+.oneri .ic{display:flex;flex-direction:column;gap:12px}
+.oneri .et{font-size:13px;font-weight:700;letter-spacing:.14em}
+.oneri .ana{font-size:clamp(24px,2.4vw,34px);line-height:1.15;font-weight:700;text-wrap:balance}
+.oneri .alt{font-size:16px;line-height:1.45;font-weight:500}
+.oneri .kul{display:flex;flex-direction:column;gap:6px}
+.oneri .kul-iz{height:12px;border-radius:6px;background:rgba(27,9,7,.28);position:relative;overflow:hidden}
+.oneri .kul-dolgu{position:absolute;left:0;top:0;bottom:0;background:#1B0907;border-radius:6px}
+.oneri .kul-yazi{display:flex;justify-content:space-between;font-size:12px;font-weight:600}
+a.dugme{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-size:14px;font-weight:700;padding:11px 18px;min-height:44px;border-radius:12px;border:2px solid currentColor;color:inherit;cursor:pointer}
+.oneri a.dugme{background:rgba(0,0,0,.12)}
+.oneri a.dugme:hover{background:rgba(0,0,0,.22)}
+
+/* kartlar */
+.satir{display:flex;flex-wrap:wrap;gap:20px;align-items:stretch}
+.kart{background:var(--kart);border:1px solid var(--cizgi);border-radius:18px;padding:22px 26px 24px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.kart-ust{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.kart h2{margin:0;font-size:13px;font-weight:600;letter-spacing:.14em;color:var(--yazi2)}
+.altyazi{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:13px;color:var(--yazi2)}
+.altyazi i{display:inline-block;width:12px;height:3px;background:var(--yazi2);margin-right:8px;vertical-align:middle}
+svg{display:block}
+svg text{font-family:var(--sans)}
+.m,.m text.mono{font-family:var(--mono)}
+
+/* drone */
+.drone{width:100%;height:auto}
+.drone .kol{stroke:var(--cizgi2);stroke-width:15;stroke-linecap:round}
+.drone .kol-ic{stroke:#34475C;stroke-width:3;stroke-linecap:round}
+.drone .govde{fill:var(--kart2);stroke:var(--cizgi2);stroke-width:2}
+.motor .puls{display:none;fill:none;stroke:var(--kirmizi);stroke-width:2;transform-box:fill-box;transform-origin:center}
+.motor .halo{display:none;fill:var(--kirmizi);opacity:.10}
+.motor .pervane{fill:var(--yazi2);opacity:.09}
+.motor .zemin{fill:var(--kart)}
+.motor .iz{fill:none;stroke:#142329;stroke-width:9;stroke-linecap:round}
+.motor .dv{fill:none;stroke:var(--yesil);stroke-width:9;stroke-linecap:round}
+.motor .norm{stroke:var(--yazi2);stroke-width:2.5}
+.motor .no{fill:var(--yazi);font-size:24px;font-weight:600}
+.motor .pwm{fill:var(--yazi);font-size:24px;font-weight:600}
+.motor .sap{fill:var(--yazi2);font-size:17px;font-weight:600}
+.motor .guc{fill:var(--yazi3);font-size:13px}
+.motor .rozet{display:none}
+.motor .rozet rect{fill:#3A1618;stroke:var(--kirmizi)}
+.motor .rozet text{fill:var(--kirmizi-yazi);font-size:12px;font-weight:700;letter-spacing:1.2px}
+.motor.kotu .iz{stroke:#2C1518}
+.motor.kotu .dv{stroke:var(--kirmizi)}
+.motor.kotu .puls{display:block;animation:puls 1.6s ease-out infinite}
+.motor.kotu .halo,.motor.kotu .rozet{display:block}
+.motor.kotu .pervane{fill:var(--kirmizi);opacity:.16}
+.motor.kotu .sap,.motor.kotu .guc{fill:var(--kirmizi-yazi)}
+.motor.sapiyor .dv{stroke:var(--kehribar)}
+.motor.sapiyor .sap,.motor.sapiyor .guc{fill:var(--kehribar)}
+.motor.yok .dv{display:none}
+.motor.yok .norm{display:none}
+.motor.yok .pwm,.motor.yok .sap,.motor.yok .guc,.motor.yok .no{fill:var(--yazi3)}
+.drone .on-yazi{fill:var(--yazi3);font-size:12px;font-weight:600;letter-spacing:3px}
+.drone .on-ok{fill:var(--yazi2)}
+
+/* enerji ve uçuş */
+.izgara{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:28px 32px}
+.tam{grid-column:1/-1}
+.satir-b{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.satir-b .d{font-family:var(--mono);font-size:22px;font-weight:600}
+.satir-b.buyuk .d{font-size:30px}
+.alan{display:flex;flex-direction:column;gap:6px;min-width:0}
+.aralik{width:100%;height:auto}
+.aralik .iz{fill:var(--iz)}
+.aralik .bant{fill:var(--yesil-koyu)}
+.aralik .im{fill:var(--yesil);stroke:var(--kart);stroke-width:3}
+.aralik.kotu .im{fill:var(--kirmizi)}
+.aralik.yok .im{fill:var(--gri)}
+.aralik.yok .bant{display:none}
+.alt-yazi{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--yazi3)}
+.alt-yazi .iyi{color:var(--yesil)} .alt-yazi .kotu{color:var(--kirmizi-yazi)} .alt-yazi .not{color:var(--yazi3)}
+.hucre{fill:var(--iz)} .hucre.dolu{fill:var(--yesil)}
+.hucre.dolu.azalan{fill:var(--kehribar)} .hucre.dolu.kritik{fill:var(--kirmizi)}
+.cipler.alt{margin-top:0}
+.ir-yesil{fill:var(--yesil-koyu)}
+.ir-im{fill:var(--cyan)}
+.kapi{stroke:var(--yazi);stroke-width:2;stroke-dasharray:3 3}
+.tik{fill:var(--yazi3);font-size:12px}
+.sat-cubuk{fill:var(--iz)} .sat-cubuk.dolu{fill:var(--yesil)} .sat-cubuk.dolu.kotu{fill:var(--kirmizi)}
+
+/* gösterge */
+.gosterge{width:100%;height:auto;max-width:420px;margin:0 auto}
+.gosterge .yesil-iz{stroke:#123B30} .gosterge .kirmizi-iz{stroke:#3A1618}
+.gosterge .dolu{stroke:var(--yesil)} .gosterge.kotu .dolu{stroke:var(--kirmizi)}
+.gosterge .sayi{fill:var(--yazi);font-size:46px;font-weight:600}
+.gosterge.kotu .sayi{fill:var(--kirmizi-yazi)}
+.gosterge .ib{stroke:var(--yazi);stroke-width:4;stroke-linecap:round}
+.gosterge .aciklama{fill:var(--yazi2);font-size:13px}
+.gosterge .etk{fill:var(--yazi2);font-size:13px}
+.gosterge.yok .dolu,.gosterge.yok .ib{display:none}
+.gosterge.yok .sayi{fill:var(--yazi3)}
+.capraz{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--kart2);border:1px solid var(--cizgi2)}
+.capraz svg{flex:none;margin-top:1px}
+.capraz .b{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--yazi2)}
+.capraz .t{font-size:14px;line-height:1.4;color:var(--yazi2)}
+.capraz.tamam{background:#0F2A22;border-color:#1F5A47}
+.capraz.tamam .b{color:var(--yesil)} .capraz.tamam .t{color:var(--yazi)}
+.capraz.uyari{background:#2B2110;border-color:#6B4F17}
+.capraz.uyari .b{color:var(--kehribar)} .capraz.uyari .t{color:var(--yazi)}
+.capraz .ic{display:flex;flex-direction:column;gap:2px}
+
+/* grafik */
+.grafik-kutu{background:#101217;border:1px solid #262B33;border-radius:10px;overflow:hidden}
+.grafik-kutu iframe{display:block;width:100%;height:340px;border:0;background:#111217}
+.yer{padding:22px;color:var(--yazi2);font-size:14px;line-height:1.55}
+.yer b{color:var(--yazi)}
+
+/* zaman çizelgesi, olaylar */
+.kaydir{overflow-x:auto}
+.cizelge{width:100%;height:auto;min-width:860px}
+.cizelge .hat{stroke:var(--cizgi2);stroke-width:3;stroke-linecap:round}
+.cizelge .blok{fill:var(--kirmizi)}
+.cizelge .blok.gps{fill:var(--kehribar)}
+.cizelge .et{fill:var(--kirmizi-yazi);font-size:12px;font-weight:600}
+.cizelge .ek{fill:var(--yazi2);font-size:12px;font-weight:400}
+.cizelge .simdi{fill:var(--cyan);stroke:var(--kart);stroke-width:2}
+.zc-alt{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.zc-alt .bosluk{flex:1}
+a.baglanti{display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-size:13px;font-weight:700;padding:9px 16px;min-height:40px;border-radius:999px;border:1px solid var(--cyan);color:var(--cyan)}
+a.baglanti:hover{background:rgba(90,200,250,.10)}
+a.baglanti.birincil{background:var(--cyan);color:#04141C}
+a.baglanti.birincil:hover{background:#7BD5FB}
+a.baglanti[hidden]{display:none}
+.bos{margin:0;font-size:15px;color:var(--yazi2)}
+table{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
+th{text-align:left;color:var(--yazi3);font-size:12px;letter-spacing:.1em;font-weight:600;padding:6px 12px 8px}
+td{padding:12px;border-top:1px solid var(--cizgi)}
+th:first-child,td:first-child{padding-left:0} th:last-child,td:last-child{padding-right:0}
+td.s{font-family:var(--mono);color:var(--yazi2)}
+td.t{font-weight:600} td.n{color:var(--yazi2)}
+.dev{color:var(--kirmizi-yazi);font-weight:600;white-space:nowrap}
+.bit{color:var(--yesil);font-weight:600;white-space:nowrap}
+.not{margin:0;font-size:13px;line-height:1.55;color:var(--yazi3);max-width:110ch}
+
+@keyframes puls{from{transform:scale(.9);opacity:.8}to{transform:scale(1.3);opacity:0}}
+@keyframes nabiz{from{transform:scale(1);opacity:.9}to{transform:scale(2.2);opacity:0}}
+@media (prefers-reduced-motion:reduce){.nokta::after,.motor.kotu .puls,.ikon .dalga{animation:none!important}}
+@media (max-width:640px){
+  .sayfa{padding:16px}
+  .durum-kart{flex-direction:column;padding:22px 20px;gap:14px}
+  .ikon{width:72px;height:72px}
+  .oneri{padding:22px 20px}
+  .kart{padding:18px 16px 20px}
+  .cumle{font-size:17px}
+}
+</style>
+</head>
+<body data-durum="baglanti_yok">
+<div class="sayfa">
+  <div class="serit" id="serit" hidden aria-hidden="true"></div>
+
+  <header class="ust">
+    <div class="sol">
+      <svg aria-hidden="true" width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="#5AC8FA" stroke-width="2.2" stroke-linecap="round"><path d="M9 9l14 14M23 9L9 23"/><circle cx="7" cy="7" r="4"/><circle cx="25" cy="7" r="4"/><circle cx="7" cy="25" r="4"/><circle cx="25" cy="25" r="4"/><rect x="12.5" y="12.5" width="7" height="7" rx="2" fill="#5AC8FA" stroke="none"/></svg>
+      <span class="marka">İHA İZLEME</span>
+      <span class="id" id="drone"></span>
+      <span class="hap cyan">SİMÜLASYON</span>
+      <span class="hap" id="hapMotor">MOTORLAR —</span>
+      <span class="hap beyaz" id="hapMod" hidden></span>
+    </div>
+    <div class="sag">
+      <select class="ses-sec" id="sesSec" aria-label="Sesli uyarının sesi" title="Sesli uyarının sesini seç (seçince örnek cümle okunur)" hidden></select>
+      <a class="ses" id="raporUst" href="/rapor" target="_blank" rel="opener" title="Olay raporunu yeni sekmede aç">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
+        <span>Olay raporu</span>
+      </a>
+      <button type="button" class="ses" id="sesBtn" aria-pressed="false">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path id="sesDalga1" d="M15.5 8.5a5 5 0 0 1 0 7"/><path id="sesDalga2" d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+        <span class="ses-yazi-kutu"><span id="sesYazi">Sesli uyarı</span><span class="ses-boyut" aria-hidden="true">Sesli uyarı: açmak için tıkla</span></span>
+      </button>
+      <span class="canli"><span class="nokta kapali" id="nokta"></span><span id="canli">Bağlanılıyor…</span></span>
+    </div>
+  </header>
+  <div class="ses-not" id="sesNot" hidden></div>
+
+  <section class="kahraman" aria-label="Durum">
+    <div class="durum-kart">
+      <svg class="ikon" viewBox="0 0 104 104" aria-hidden="true">
+        <circle class="zemin" cx="52" cy="52" r="42"/>
+        <circle class="dalga" cx="52" cy="52" r="42"/>
+        <g class="glif g-uyari" transform="translate(28 26)"><path d="M24 3 2.5 41h43L24 3z"/><path d="M24 17v13"/><path d="M24 35.5v.5"/></g>
+        <path class="glif g-tamam" d="M33 53l13 13 25-27"/>
+        <g class="glif g-dur"><path d="M43 38v28"/><path d="M61 38v28"/></g>
+      </svg>
+      <div class="metin">
+        <div class="etiket-satir"><span class="etiket" id="etiket">DURUM</span><span class="alt-bilgi" id="altBilgi"></span></div>
+        <h1 id="baslik" aria-live="polite">Bağlanılıyor…</h1>
+        <p class="cumle" id="cumle"></p>
+        <div class="ek" id="ek" hidden></div>
+        <div class="pay" id="pay" hidden>
+          <div class="pay-ust"><span class="e">TEŞHİS PAYI</span><span class="mono" id="payDeger"></span></div>
+          <div class="pay-iz"><div class="pay-dolgu" id="payDolgu" style="width:0"></div></div>
+          <div class="pay-alt" id="payAlt"></div>
+        </div>
+        <div class="cipler" id="cipler"></div>
+      </div>
+    </div>
+    <aside class="oneri" aria-label="Öneri">
+      <div class="ic">
+        <span class="et" id="oneriEt">NOT</span>
+        <span class="ana" id="oneriAna"></span>
+        <span class="alt" id="oneriAlt"></span>
+      </div>
+      <div class="kul" id="oneriKul" hidden>
+        <div class="kul-iz"><div class="kul-dolgu" id="oneriDolgu" style="width:0"></div></div>
+        <div class="kul-yazi"><span id="oneriKulYazi"></span><span>%100</span></div>
+      </div>
+      <a class="dugme" id="oneriRapor" href="/rapor" target="_blank" rel="opener" hidden>Olay raporunu aç</a>
+    </aside>
+  </section>
+
+  <div class="satir">
+    <section class="kart" style="flex:1.5 1 520px" aria-label="Motorlar">
+      <div class="kart-ust"><h2>DRONE · YUKARIDAN</h2><span class="hap" id="droneHap">MOTOR PWM</span></div>
+      <svg class="drone" id="drone-svg" viewBox="0 0 680 410" role="img" aria-label="Drone yukarıdan, dört motorun PWM kullanımı"></svg>
+      <div class="altyazi"><span>Halka: motorun PWM aralığındaki (1000-2000) kullanımı</span><span><i></i>normal kullanım</span></div>
+    </section>
+    <section class="kart" style="flex:1 1 380px" aria-label="Enerji ve uçuş">
+      <div class="kart-ust"><h2>ENERJİ VE UÇUŞ</h2></div>
+      <div class="izgara">
+        <div class="alan tam">
+          <div class="satir-b buyuk"><span class="e">KALAN BATARYA</span><span class="d" id="batYuzde">—</span></div>
+          <svg viewBox="0 0 296 20" width="100%" aria-hidden="true" id="batHucre" style="height:auto"></svg>
+        </div>
+        <div class="alan" id="voltAlan"></div>
+        <div class="alan" id="akimAlan"></div>
+        <div class="alan" id="irtifaAlan"></div>
+        <div class="alan" id="gpsAlan"></div>
+        <div class="cipler tam alt" id="uCipler"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="satir">
+    <section class="kart" style="flex:1 1 380px" aria-label="Model skoru">
+      <div class="kart-ust"><h2>MODEL SKORU</h2><span class="hap">ALARM SINIRI 1,0×</span></div>
+      <svg class="gosterge yok" id="gosterge" viewBox="0 0 360 262" role="img" aria-label="Model skoru göstergesi"></svg>
+      <div class="capraz" id="capraz"></div>
+    </section>
+    <section class="kart" style="flex:2 1 560px" aria-label="Skor zaman içinde">
+      <div class="kart-ust"><h2>SKOR ZAMAN İÇİNDE · SON 5 DAKİKA</h2><span class="hap">GÖMÜLÜ GRAFANA PANELİ</span></div>
+      <div class="grafik-kutu" id="grafik"></div>
+    </section>
+  </div>
+
+  <section class="kart" aria-label="Uçuş zaman çizelgesi">
+    <div class="kart-ust"><h2>UÇUŞ ZAMAN ÇİZELGESİ</h2></div>
+    <div class="kaydir" id="zaman"></div>
+    <div class="cipler zc-alt" id="zamanCipler" style="margin-top:0"></div>
+  </section>
+
+  <section class="kart" aria-label="Son olaylar">
+    <div class="kart-ust"><h2>SON OLAYLAR</h2></div>
+    <div class="kaydir" id="olaylar"></div>
+  </section>
+
+  <p class="not">Motor yerleşimi ArduCopter X-quad sırasına göredir (1 ön-sağ, 2 arka-sol, 3 ön-sol, 4 arka-sağ). Voltaj ve akım için "normal bant", modelin öğrendiği ortalama ± 3 standart sapmadır; simülatörde bu bant çok dardır. Teşhis payı bir olasılık değildir: alarm skorunun seçilen sinyalden gelen kısmını gösterir. Öneri metinleri basit kurallardır ve henüz doğrulanmadı. "Olası neden" yalnızca simülatörde tanımlı arıza türlerini (tek motor, batarya) ayırt eder.</p>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+function mk(tag, attrs, parent, text){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function sayi(x, n, isaretli){
+  if (x === null || x === undefined || Number.isNaN(x)) return "—";
+  const m = Math.abs(x).toFixed(n).replace(".", ",");
+  const sifir = Number(Math.abs(x).toFixed(n)) === 0;
+  if (isaretli) return sifir ? m : (x > 0 ? "+" : "−") + m;
+  return (x < 0 && !sifir ? "−" : "") + m;
+}
+function sureYaz(sn){
+  if (sn === null || sn === undefined) return "—";
+  sn = Math.max(0, Math.round(sn));
+  const s = sn % 60, m = Math.floor(sn / 60) % 60, h = Math.floor(sn / 3600);
+  const iki = (v) => String(v).padStart(2, "0");
+  return h ? h + ":" + iki(m) + ":" + iki(s) : m + ":" + iki(s);
+}
+function metinYaz(el, v){ if (el.textContent !== v) el.textContent = v; }
+function htmlYaz(el, v){ if (el.__h !== v){ el.__h = v; el.innerHTML = v; } }
+function sinirla(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function nokta(cx, cy, r, a){ const t = a * Math.PI / 180; return [cx + r * Math.cos(t), cy + r * Math.sin(t)]; }
+function yay(cx, cy, r, a0, a1){
+  const [x0, y0] = nokta(cx, cy, r, a0), [x1, y1] = nokta(cx, cy, r, a1);
+  return "M" + x0.toFixed(1) + "," + y0.toFixed(1) + " A" + r + "," + r + " 0 " + ((a1 - a0) > 180 ? 1 : 0) + " 1 " + x1.toFixed(1) + "," + y1.toFixed(1);
+}
+const PWM_MIN = 1000, PWM_MAX = 2000, NORMAL_KULLANIM = 0.604;
+
+/* ============================== DRONE ============================== */
+const MOTOR_YER = {3: [170, 105, "l"], 1: [510, 105, "r"], 2: [170, 300, "l"], 4: [510, 300, "r"]};
+const motorlar = {};
+function droneKur(){
+  const svg = $("drone-svg");
+  [["kol"], ["kol-ic"]].forEach(([sinif]) => { const g = mk("g", {}, svg); Object.values(MOTOR_YER).forEach(([x, y]) => mk("line", {x1: 340, y1: 205, x2: x, y2: y, class: sinif}, g)); });
+  mk("rect", {class: "govde", x: 288, y: 160, width: 104, height: 90, rx: 28}, svg);
+  mk("circle", {cx: 340, cy: 205, r: 14, fill: "#0D131B", stroke: "#5AC8FA", "stroke-width": 2}, svg);
+  mk("circle", {cx: 340, cy: 205, r: 4, fill: "#5AC8FA"}, svg);
+  mk("path", {class: "on-ok", d: "M340 124 l-13 20 h26 z"}, svg);
+  mk("text", {class: "on-yazi", x: 340, y: 112, "text-anchor": "middle"}, svg, "ÖN");
+  [3, 1, 2, 4].forEach((n) => {
+    const [cx, cy, yan] = MOTOR_YER[n];
+    const g = mk("g", {class: "motor yok"}, svg), m = {g};
+    mk("circle", {class: "puls", cx, cy, r: 58}, g);
+    mk("circle", {class: "halo", cx, cy, r: 58}, g);
+    [35, 125].forEach((rot) => mk("ellipse", {class: "pervane", cx, cy, rx: 52, ry: 7, transform: "rotate(" + rot + " " + cx + " " + cy + ")"}, g));
+    mk("circle", {class: "zemin", cx, cy, r: 34}, g);
+    mk("path", {class: "iz", d: yay(cx, cy, 42, 135, 405)}, g);
+    m.dv = mk("path", {class: "dv", d: ""}, g);
+    m.norm = mk("line", {class: "norm", x1: 0, y1: 0, x2: 0, y2: 0}, g);
+    mk("text", {class: "no mono", x: cx, y: cy + 8, "text-anchor": "middle"}, g, String(n));
+    const lx = yan === "l" ? cx - 84 : cx + 84, an = yan === "l" ? "end" : "start";
+    m.pwm = mk("text", {class: "pwm mono", x: lx, y: cy - 12, "text-anchor": an}, g, "—");
+    m.sap = mk("text", {class: "sap mono", x: lx, y: cy + 12, "text-anchor": an}, g, "");
+    m.guc = mk("text", {class: "guc", x: lx, y: cy + 33, "text-anchor": an}, g, "");
+    const r = mk("g", {class: "rozet"}, g);
+    mk("rect", {x: cx - 62, y: cy + 66, width: 124, height: 24, rx: 12}, r);
+    m.rozet = mk("text", {x: cx, y: cy + 83, "text-anchor": "middle"}, r, "ARIZALI (OLASI)");
+    m.cx = cx; m.cy = cy;
+    motorlar[n] = m;
+  });
+}
+function motorGuncelle(n, pwm, sapma, kul, normal, durum, rozet){
+  const m = motorlar[n];
+  m.g.setAttribute("class", "motor " + durum);
+  if (pwm === null || pwm === undefined){ metinYaz(m.pwm, "—"); metinYaz(m.sap, ""); metinYaz(m.guc, ""); m.g.setAttribute("class", "motor yok"); return; }
+  const f = sinirla((pwm - PWM_MIN) / (PWM_MAX - PWM_MIN), 0, 1);
+  m.dv.setAttribute("d", f < 0.004 ? "" : yay(m.cx, m.cy, 42, 135, 135 + 270 * f));
+  const nf = sinirla((normal === null || normal === undefined ? NORMAL_KULLANIM * 100 : normal) / 100, 0, 1);
+  const [x1, y1] = nokta(m.cx, m.cy, 35, 135 + 270 * nf), [x2, y2] = nokta(m.cx, m.cy, 52, 135 + 270 * nf);
+  m.norm.setAttribute("x1", x1.toFixed(1)); m.norm.setAttribute("y1", y1.toFixed(1)); m.norm.setAttribute("x2", x2.toFixed(1)); m.norm.setAttribute("y2", y2.toFixed(1));
+  metinYaz(m.pwm, String(pwm));
+  metinYaz(m.sap, sapma === null || sapma === undefined ? "" : sayi(sapma, 0, true) + " PWM");
+  metinYaz(m.guc, "güç %" + sayi(f * 100, 0));
+  if (rozet) metinYaz(m.rozet, rozet);
+}
+
+/* ============================== MODEL SKORU GÖSTERGESİ ============================== */
+const G = {cx: 180, cy: 172, r: 128};
+let gOge = null;
+function gostergeKur(){
+  const svg = $("gosterge"), {cx, cy, r} = G;
+  mk("path", {class: "yesil-iz", d: yay(cx, cy, r, 180, 240), fill: "none", "stroke-width": 20}, svg);
+  mk("path", {class: "kirmizi-iz", d: yay(cx, cy, r, 240, 360), fill: "none", "stroke-width": 20}, svg);
+  gOge = {dolu: mk("path", {class: "dolu", d: "", fill: "none", "stroke-width": 20}, svg)};
+  [[0, "0,1×"], [1 / 3, "1×"], [2 / 3, "10×"], [1, "100×"]].forEach(([f, t]) => {
+    const a = 180 + 180 * f;
+    if (f === 0 || f === 1){ const [xt] = nokta(cx, cy, r, a); mk("text", {class: "etk mono", x: xt.toFixed(1), y: cy + 28, "text-anchor": "middle"}, svg, t); return; }
+    const [x1, y1] = nokta(cx, cy, r + 14, a), [x2, y2] = nokta(cx, cy, r + 20, a), [xt, yt] = nokta(cx, cy, r + 36, a);
+    mk("line", {x1: x1.toFixed(1), y1: y1.toFixed(1), x2: x2.toFixed(1), y2: y2.toFixed(1), stroke: "#7E92A8", "stroke-width": 2}, svg);
+    mk("text", {class: "etk mono", x: xt.toFixed(1), y: (yt + 4).toFixed(1), "text-anchor": "middle"}, svg, t);
+  });
+  const [xs, ys] = nokta(cx, cy, r + 14, 240), [xe, ye] = nokta(cx, cy, r - 14, 240);
+  mk("line", {x1: xs.toFixed(1), y1: ys.toFixed(1), x2: xe.toFixed(1), y2: ye.toFixed(1), stroke: "#E8EEF5", "stroke-width": 2.5, "stroke-dasharray": "3 3"}, svg);
+  gOge.ibre = mk("line", {class: "ib", x1: cx, y1: cy, x2: cx - 100, y2: cy}, svg);
+  mk("circle", {cx, cy, r: 9, fill: "#0D131B", stroke: "#E8EEF5", "stroke-width": 3}, svg);
+  gOge.sayi = mk("text", {class: "sayi mono", x: cx, y: cy + 58, "text-anchor": "middle"}, svg, "—");
+  mk("text", {class: "aciklama", x: cx, y: cy + 82, "text-anchor": "middle"}, svg, "mesafe ÷ eşik · logaritmik ölçek");
+}
+function gostergeGuncelle(skor){
+  const svg = $("gosterge");
+  if (skor === null || skor === undefined){ svg.setAttribute("class", "gosterge yok"); metinYaz(gOge.sayi, "—"); svg.setAttribute("aria-label", "Model skoru yok: model şu an karar vermiyor"); return; }
+  const f = sinirla((Math.log10(Math.max(skor, 1e-6)) + 1) / 3, 0, 1);
+  svg.setAttribute("class", "gosterge" + (skor > 1 ? " kotu" : ""));
+  gOge.dolu.setAttribute("d", f < 0.004 ? "" : yay(G.cx, G.cy, G.r, 180, 180 + 180 * f));
+  const [xn, yn] = nokta(G.cx, G.cy, G.r - 28, 180 + 180 * f);
+  gOge.ibre.setAttribute("x2", xn.toFixed(1)); gOge.ibre.setAttribute("y2", yn.toFixed(1));
+  metinYaz(gOge.sayi, sayi(skor, 2) + "×");
+  svg.setAttribute("aria-label", "Model skoru göstergesi: " + sayi(skor, 2) + " kat, alarm sınırı 1 kat");
+}
+
+/* ============================== ENERJİ ============================== */
+const IKON_TIK = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const IKON_SAAT = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const IKON_UYARI = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+
+const hucreler = [];
+function enerjiKur(){
+  const svg = $("batHucre");
+  for (let i = 0; i < 10; i++) hucreler.push(mk("rect", {class: "hucre", x: i * 30, y: 0, width: 26, height: 20, rx: 5}, svg));
+}
+function batGuncelle(yuzde){
+  metinYaz($("batYuzde"), yuzde === null || yuzde === undefined ? "—" : "%" + Math.round(yuzde));
+  const n = yuzde === null || yuzde === undefined ? 0 : Math.round(yuzde / 10);
+  const sinif = yuzde !== null && yuzde < 15 ? " dolu kritik" : yuzde !== null && yuzde < 30 ? " dolu azalan" : " dolu";
+  hucreler.forEach((h, i) => h.setAttribute("class", "hucre" + (i < n ? sinif : "")));
+}
+/* aralık çubuğu: eksen modelin normal ortalamasının etrafında; bant = ortalama ± 3 standart sapma */
+const aralik = {};
+function aralikKur(alan, kimlik, etiket){
+  const a = $(alan);
+  a.innerHTML = '<div class="satir-b"><span class="e">' + etiket + '</span><span class="d" id="' + kimlik + 'D">—</span></div>' +
+    '<svg class="aralik yok" id="' + kimlik + 'S" viewBox="0 0 300 30" aria-hidden="true"><rect class="iz" x="0" y="12" width="300" height="6" rx="3"/><rect class="bant" id="' + kimlik + 'B" x="0" y="10" width="0" height="10" rx="3"/><circle class="im" id="' + kimlik + 'I" cx="150" cy="15" r="8"/></svg>' +
+    '<div class="alt-yazi"><span id="' + kimlik + 'L">—</span><span id="' + kimlik + 'T"></span><span id="' + kimlik + 'H">—</span></div>';
+  aralik[kimlik] = {s: $(kimlik + "S"), d: $(kimlik + "D"), b: $(kimlik + "B"), i: $(kimlik + "I"), l: $(kimlik + "L"), t: $(kimlik + "T"), h: $(kimlik + "H")};
+}
+function aralikGuncelle(kimlik, deger, birim, basamak, merkez, yarim, sg){
+  const o = aralik[kimlik];
+  metinYaz(o.d, deger === null || deger === undefined ? "—" : sayi(deger, basamak) + " " + birim);
+  const lo = merkez - yarim, hi = merkez + yarim;
+  const X = (v) => (sinirla(v, lo, hi) - lo) / (hi - lo) * 300;
+  metinYaz(o.l, sayi(lo, basamak)); metinYaz(o.h, sayi(hi, basamak));
+  if (deger === null || deger === undefined){ o.s.setAttribute("class", "aralik yok"); metinYaz(o.t, ""); return; }
+  o.i.setAttribute("cx", X(deger).toFixed(1));
+  if (sg && sg.bant_alt !== null && sg.bant_alt !== undefined){
+    const x0 = X(sg.bant_alt), x1 = X(sg.bant_ust);
+    o.b.setAttribute("x", x0.toFixed(1)); o.b.setAttribute("width", Math.max(x1 - x0, 6).toFixed(1));
+    o.s.setAttribute("class", "aralik" + (sg.bantta ? "" : " kotu"));
+    o.t.className = sg.bantta ? "iyi" : "kotu";
+    metinYaz(o.t, sg.bantta ? "✓ normal bantta" : (deger < sg.bant_alt ? "▼ normal bandın altında" : "▲ normal bandın üstünde"));
+  } else {
+    o.s.setAttribute("class", "aralik yok"); o.t.className = "not"; metinYaz(o.t, "model izlemiyor");
+  }
+}
+let irSvg = null, irMax = 0;
+function irtifaGuncelle(irtifa, kapi){
+  const a = $("irtifaAlan");
+  const max = 15 * Math.ceil(Math.max((irtifa || 0) * 1.1, 15) / 15);
+  if (!irSvg || irMax !== max){
+    irMax = max;
+    const X = (q) => 10 + q / max * 280;
+    a.innerHTML = '<div class="satir-b"><span class="e">İRTİFA</span><span class="d" id="irD">—</span></div>' +
+      '<svg viewBox="0 0 300 40" aria-hidden="true" style="width:100%;height:auto"><rect class="aralik-iz" x="10" y="12" width="280" height="6" rx="3" fill="#18222E"/>' +
+      '<rect class="ir-yesil" x="' + X(kapi).toFixed(1) + '" y="12" width="' + (X(max) - X(kapi)).toFixed(1) + '" height="6"/>' +
+      '<line class="kapi" x1="' + X(kapi).toFixed(1) + '" y1="5" x2="' + X(kapi).toFixed(1) + '" y2="25"/>' +
+      '<path class="ir-im" id="irI" d="M10 22 l-7 -12 h14 z"/>' +
+      [0, max / 3, 2 * max / 3, max].map((q) => '<text class="tik mono" x="' + X(q).toFixed(1) + '" y="38" text-anchor="middle">' + Math.round(q) + '</text>').join("") +
+      '</svg><span class="alt-yazi"><span>Yeşil bölge: model ' + sayi(kapi, 0) + ' m üstünde karar verir</span></span>';
+    irSvg = true;
+  }
+  metinYaz($("irD"), irtifa === null || irtifa === undefined ? "—" : sayi(irtifa, 1) + " m");
+  const x = 10 + sinirla(irtifa || 0, 0, max) / max * 280;
+  $("irI").setAttribute("d", "M" + x.toFixed(1) + " 22 l-7 -12 h14 z");
+}
+const FIX_AD = {0: "fix yok", 1: "fix yok", 2: "2D fix", 3: "3D fix", 4: "DGPS", 5: "RTK float", 6: "RTK fixed"};
+const satBar = [];
+function gpsKur(){
+  const a = $("gpsAlan");
+  a.innerHTML = '<div class="satir-b"><span class="e">GPS</span><span class="d" id="gpsD">—</span></div>' +
+    '<svg viewBox="0 0 280 24" aria-hidden="true" style="width:100%;height:auto" id="gpsS"></svg><div class="alt-yazi"><span id="gpsT"></span></div>';
+  const s = $("gpsS");
+  for (let i = 0; i < 12; i++){ const h = 6 + i * 1.3; satBar.push(mk("rect", {class: "sat-cubuk", x: i * 24, y: (22 - h).toFixed(1), width: 16, height: h.toFixed(1), rx: 3}, s)); }
+  mk("line", {class: "kapi", x1: 6 * 24 - 4, y1: 0, x2: 6 * 24 - 4, y2: 24}, s);
+}
+function gpsGuncelle(uydu, fix){
+  const bilinmiyor = uydu === null || uydu === undefined;
+  metinYaz($("gpsD"), bilinmiyor ? "—" : uydu + " uydu");
+  const iyi = !bilinmiyor && uydu >= 6 && fix >= 3;
+  satBar.forEach((b, i) => b.setAttribute("class", "sat-cubuk" + (!bilinmiyor && i < uydu ? " dolu" + (iyi ? "" : " kotu") : "")));
+  const t = $("gpsT");
+  t.className = bilinmiyor ? "not" : iyi ? "iyi" : "kotu";
+  metinYaz(t, bilinmiyor ? "veri yok" : iyi ? "✓ yeterli (en az 6) · " + (FIX_AD[fix] || "fix " + fix) : "▲ yetersiz (en az 6 uydu ve 3D fix) · " + (FIX_AD[fix] || "fix " + fix));
+}
+function chipHtml(e, v, s){ return '<div class="cip"><span class="e">' + esc(e) + '</span><span class="d ' + (s || "") + '">' + esc(v) + '</span></div>'; }
+
+/* ============================== GRAFİK ============================== */
+let grafikUrl = null;
+function grafikCiz(d){
+  const url = d.grafana_url !== undefined ? d.grafana_url : (grafikUrl || "");
+  if (url === grafikUrl && $("grafik").childElementCount) return;
+  grafikUrl = url;
+  const c = $("grafik"); c.replaceChildren();
+  if (url){
+    const f = document.createElement("iframe"); f.src = url; f.title = "Grafana: anomali skoru"; c.appendChild(f);
+  } else {
+    const y = document.createElement("div"); y.className = "yer";
+    y.innerHTML = "<b>Grafana paneli bağlı değil.</b> exporter'ı başlatmadan önce <span class='mono'>GRAFANA_PANEL_URL</span> ortam değişkenine Grafana'daki panelin Share &gt; Embed adresini ver (scripts/baslat.sh bunu kendisi yapar).";
+    c.appendChild(y);
+  }
+}
+
+/* ============================== ÇAPRAZ KONTROL ============================== */
+function turAd(t){ return t === "batarya" ? "Batarya" : /^motor\d$/.test(t || "") ? "Motor " + t.slice(5) : t; }
+function caprazCiz(d){
+  const a = d.aciklama, c = $("capraz");
+  let sinif = "capraz", ikon = IKON_SAAT, baslik = "ÇAPRAZ KONTROL", metin = "Alarm olunca iki ayrı kural birbirini doğrular. İkisi ayrışırsa ekran neden iddia etmez.";
+  if (d.durum === "alarm" && a){
+    if (a.uyumsuz){
+      sinif += " uyari"; ikon = IKON_UYARI;
+      metin = "İki kural ayrıştı (" + turAd(a.tur_kural) + " / " + turAd(a.tur_kendi) + "). Ekran neden iddia etmiyor.";
+    } else if (a.tur === "belirsiz"){
+      sinif += " uyari"; ikon = IKON_UYARI;
+      metin = "Sapma, neden iddia etmek için yeterince net değil.";
+    } else {
+      sinif += " tamam"; ikon = IKON_TIK;
+      metin = "İki ayrı kural aynı sonucu verdi: " + (a.tur === "motor" ? "Motor " + a.motor : "Batarya") + ".";
+    }
+  } else if (d.durum === "jamming"){
+    metin = "GPS jamming kuralı ayrı çalışır; model skoru bu alarmı değerlendirmez.";
+  }
+  c.className = sinif;
+  htmlYaz(c, ikon + '<div class="ic"><span class="b">' + baslik + '</span><span class="t">' + esc(metin) + '</span></div>');
+}
+
+/* ============================== ZAMAN ÇİZELGESİ ============================== */
+function zamanCiz(d){
+  const u = d.ucus, z = $("zaman"), zc = $("zamanCipler");
+  if (!u){
+    htmlYaz(z, '<p class="bos">Uçuş kaydı yok. Motorlar çalışınca kayıt başlar; inişten sonra olay raporu burada açılır.</p>');
+    htmlYaz(zc, ""); return;
+  }
+  const W = 960, X0 = 20, toplam = Math.max(u.sure_sn, 30);
+  const X = (t) => X0 + sinirla(t, 0, toplam) / toplam * W;
+  /* Model alarmları kalın blok, GPS alarmları altta ince şerit (aynı anda olabilirler).
+     Etiketler üst üste binmesin diye en fazla 3 sıraya dizilir; yeri bulamayan etiket yazılmaz
+     (alttaki olay tablosunda zaten var; blokların üstüne gelince tarayıcı ipucu gösterir). */
+  const SIRA_Y = [50, 32, 14];
+  let g = '<line class="hat" x1="' + X0 + '" y1="76" x2="' + (X0 + W) + '" y2="76"/>';
+  const sonX = SIRA_Y.map(() => -1e9);
+  (u.segmentler || []).forEach((s) => {
+    const bitis = s.bit_sn === null ? u.sure_sn : s.bit_sn;
+    const xa = X(s.bas_sn), xb = X(bitis), w = Math.max(xb - xa, 6), gps = s.tip === "jamming";
+    const sure = Math.round(bitis - s.bas_sn);
+    const txt = s.etiket + " · " + (s.devam ? "devam ediyor" : sure + " sn");
+    g += '<rect class="blok' + (gps ? " gps" : "") + '" x="' + xa.toFixed(1) + '" y="' + (gps ? 94 : 64) + '" width="' + w.toFixed(1) + '" height="' + (gps ? 10 : 24) + '" rx="' + (gps ? 3 : 5) + '"><title>' + esc(txt) + '</title></rect>';
+    if (gps) return;
+    const uz = txt.length * 7;
+    let mer = s.devam ? xa + w - uz / 2 : xa + w / 2;
+    mer = sinirla(mer, X0 + uz / 2, X0 + W - uz / 2);
+    const sira = sonX.findIndex((v) => mer - uz / 2 > v + 10);
+    if (sira < 0) return;
+    sonX[sira] = mer + uz / 2;
+    g += '<text class="et" x="' + mer.toFixed(1) + '" y="' + SIRA_Y[sira] + '" text-anchor="middle">' + esc(txt) + '</text>';
+  });
+  g += '<circle class="simdi" cx="' + (X0 + W) + '" cy="76" r="6"/>';
+  g += '<text class="ek" x="' + X0 + '" y="128">' + esc(u.kalkis) + ' kalkış</text>';
+  g += '<text class="ek" x="' + (X0 + W) + '" y="128" text-anchor="end">' + (u.devam ? "şimdi " + esc(d.saat || "") : "iniş " + esc(u.bitis || "")) + '</text>';
+  htmlYaz(z, '<svg class="cizelge" viewBox="0 0 1000 138" role="img" aria-label="Uçuş zaman çizelgesi: kırmızı bloklar model alarmları, turuncu şerit GPS alarmları">' + g + '</svg>');
+  htmlYaz(zc, chipHtml("ALARM", String(u.alarm_adet), u.alarm_adet ? "k" : "") + chipHtml("TOPLAM ALARM SÜRESİ", sureYaz(u.alarm_toplam_sn)) +
+    chipHtml("EN UZUN ALARM", sureYaz(u.alarm_en_uzun_sn)) + chipHtml("UÇUŞ SÜRESİ", sureYaz(u.sure_sn)) +
+    (u.devam ? "" : chipHtml("UÇUŞ", u.kalkis + " – " + u.bitis)));
+}
+
+function olayCiz(d){
+  const o = $("olaylar"), ol = d.olaylar || [];
+  if (!ol.length){ htmlYaz(o, '<p class="bos">Bu oturumda henüz alarm yok.</p>'); return; }
+  htmlYaz(o, '<table><thead><tr><th>SAAT</th><th>TÜR</th><th>NE OLDU</th><th>DURUM</th></tr></thead><tbody>' +
+    ol.map((x) => '<tr><td class="s">' + esc(x.saat) + '</td><td class="t">' + esc(x.tur) + '</td><td class="n">' + esc(x.ne) + '</td><td class="' + (x.durum === "devam" ? "dev" : "bit") + '">' +
+      (x.durum === "devam" ? "● devam ediyor" : "✓ bitti " + esc(x.bitis)) + '</td></tr>').join("") + '</tbody></table>');
+}
+
+/* ============================== KAHRAMAN ============================== */
+function kahramanCiz(d){
+  const k = d.durum, a = d.aciklama, u = d.ucus;
+  document.body.dataset.durum = k;
+  $("serit").hidden = !(k === "alarm" || k === "jamming");
+  let etiket = "DURUM", alt = "", ek = "", cipler = "", payGoster = false;
+  const skorSinif = d.skor !== null && d.skor !== undefined && d.skor > 1 ? "k" : "y";
+  const skorChip = chipHtml("MODEL SKORU", d.skor === null || d.skor === undefined ? "—" : sayi(d.skor, 2) + "×", d.skor === null || d.skor === undefined ? "" : skorSinif);
+  if (k === "alarm" && a){
+    etiket = "ALARM";
+    alt = (d.alarm_suresi_sn !== null && d.alarm_suresi_sn !== undefined ? sureYaz(d.alarm_suresi_sn) + " süredir" : "");
+    const s = a.sinyaller;
+    if (a.tur === "motor"){
+      const i = a.motor - 1, diger = [0, 1, 2, 3].filter((j) => j !== i).map((j) => Math.abs(s[j].sapma));
+      cipler = skorChip + chipHtml("MOTOR " + a.motor, sayi(s[i].sapma, 0, true) + " PWM", "k") +
+        chipHtml("DİĞER MOTORLAR", "±" + sayi(Math.max(...diger), 0) + " PWM") +
+        chipHtml("VOLTAJ · AKIM", (s[4].bantta && s[5].bantta) ? "normal" : "sapmış", (s[4].bantta && s[5].bantta) ? "y" : "k");
+    } else if (a.tur === "batarya"){
+      const ort = (s[0].sapma + s[1].sapma + s[2].sapma + s[3].sapma) / 4;
+      cipler = skorChip + chipHtml("VOLTAJ", sayi(s[4].sapma, 2, true) + " V", "k") + chipHtml("AKIM", sayi(s[5].sapma, 1, true) + " A", "k") +
+        chipHtml("MOTORLAR", "ort. " + sayi(ort, 0, true) + " PWM");
+    } else {
+      const ilk = s.map((x, j) => [j, x.pay]).sort((p, q) => q[1] - p[1]).slice(0, 3);
+      cipler = skorChip + ilk.map(([j]) => chipHtml(s[j].etiket.toUpperCase(), sayi(s[j].sapma, j >= 4 ? 2 : 0, true) + " " + s[j].birim, "k")).join("");
+    }
+    if (a.guven !== null && a.guven !== undefined){
+      payGoster = true;
+      const p = Math.round(a.guven * 100);
+      metinYaz($("payDeger"), "%" + p);
+      $("payDolgu").style.width = p + "%";
+      metinYaz($("payAlt"), "Alarm skorunun bu sinyalden gelen kısmı: " + a.guven_kaynak + ". Olasılık değildir.");
+    }
+    if (d.jamming) ek = "Ayrıca: " + d.jamming.baslik + ". " + d.jamming.kisa + ".";
+  } else if (k === "jamming"){
+    etiket = "ALARM · GPS";
+    cipler = chipHtml("UYDU", d.uydu === null || d.uydu === undefined ? "—" : String(d.uydu), "k") + chipHtml("FİX TİPİ", d.fix === null || d.fix === undefined ? "—" : String(d.fix), "k") + chipHtml("GEREKEN", "≥ 6 uydu · fix ≥ 3");
+  } else if (k === "normal"){
+    etiket = "İZLENİYOR";
+    alt = u && u.son_alarm ? "son alarm " + u.son_alarm.bit + " · " + u.son_alarm.etiket + " " + u.son_alarm.sure_sn + " sn" : (u ? "bu uçuşta alarm yok" : "");
+    cipler = skorChip + chipHtml("İZLENEN SİNYAL", "6 (4 motor, voltaj, akım)") + chipHtml("REJİM", d.rejim || "—") + chipHtml("UÇUŞ SÜRESİ", u ? sureYaz(u.sure_sn) : "—");
+  } else if (k === "izlenemiyor"){
+    etiket = "İZLENEMİYOR";
+    cipler = chipHtml("MOD", d.mod || "—") + chipHtml("İRTİFA", d.irtifa === null || d.irtifa === undefined ? "—" : sayi(d.irtifa, 1) + " m") +
+      chipHtml("MODEL DEVREYE GİRER", "≥ " + sayi(d.min_irtifa || 9, 0) + " m · " + (d.bekleme_sn || 5) + " sn sabit");
+  } else {
+    etiket = "BAĞLANTI YOK";
+  }
+  metinYaz($("etiket"), etiket);
+  metinYaz($("altBilgi"), alt);
+  metinYaz($("baslik"), d.baslik || "");
+  metinYaz($("cumle"), d.cumle || "");
+  const e = $("ek"); e.hidden = !ek; metinYaz(e, ek);
+  $("pay").hidden = !payGoster;
+  htmlYaz($("cipler"), cipler);
+
+  // öneri
+  let oEt = "NOT", oAna = "", oAlt = "", kul = null, raporKartta = false;
+  const o = d.oneri;
+  if (k === "alarm" || k === "jamming"){ oEt = "ÖNERİ (BASİT KURAL)"; oAna = o ? o.metin : ""; oAlt = o ? o.alt : ""; if (o && o.kullanim_yuzde !== undefined) kul = o.kullanim_yuzde; }
+  else if (k === "normal"){ oEt = "ÖNERİ"; oAna = o ? o.metin : "Bir şey yapmana gerek yok."; oAlt = o ? o.alt : ""; }
+  else if (k === "izlenemiyor"){
+    if (u && !u.devam && d.sebep === "motorlar kapali"){
+      oEt = "UÇUŞ BİTTİ"; oAna = "Olay raporu hazır."; oAlt = u.alarm_adet ? u.alarm_adet + " alarm, toplam " + sureYaz(u.alarm_toplam_sn) + "." : "Bu uçuşta alarm olmadı."; raporKartta = true;
+    } else { oEt = "NOT"; oAna = o ? o.metin : ""; oAlt = o ? o.alt : ""; }
+  } else { oEt = "NOT"; oAna = d.oneri ? d.oneri.metin : "Bağlantıyı kontrol et."; oAlt = d.oneri ? d.oneri.alt : "SITL, MAVProxy ve exporter çalışıyor mu?"; }
+  metinYaz($("oneriEt"), oEt); metinYaz($("oneriAna"), oAna); metinYaz($("oneriAlt"), oAlt);
+  $("oneriKul").hidden = kul === null;
+  if (kul !== null){ $("oneriDolgu").style.width = sinirla(kul, 0, 100) + "%"; metinYaz($("oneriKulYazi"), a && a.tur === "motor" ? "Motor " + a.motor + " kullanımı %" + sayi(kul, 0) : "Kullanım %" + sayi(kul, 0)); }
+  $("oneriRapor").hidden = !raporKartta;
+}
+
+/* ============================== PANELLER ============================== */
+function panelCiz(d){
+  const a = d.aciklama, k = d.durum, S = a ? a.sinyaller : null;
+  const veri = d.motorlar && d.baglanti;
+  for (let n = 1; n <= 4; n++){
+    const pwm = veri ? d.motorlar[n - 1] : null;
+    if (pwm === null || pwm === undefined){ motorGuncelle(n, null); continue; }
+    if (!a){ motorGuncelle(n, pwm, null, null, null, "", ""); continue; }
+    const sg = S[n - 1], t = a.telafi[n - 1];
+    let durum = "", rozet = "";
+    if (k === "alarm" && a.tur === "motor" && a.motor === n){ durum = "kotu"; rozet = "ARIZALI (OLASI)"; }
+    else if (k === "alarm" && a.tur === "belirsiz" && sg.pay > 0.2){ durum = "sapiyor"; rozet = "SAPIYOR"; }
+    motorGuncelle(n, pwm, sg.sapma, null, t ? t.normalde_yuzde : null, durum, rozet);
+  }
+  metinYaz($("hapMotor"), "MOTORLAR " + (d.armed ? "AKTİF" : "KAPALI"));
+  $("hapMotor").className = "hap" + (d.armed ? " yesil" : "");
+  const hm = $("hapMod"); hm.hidden = !d.mod; metinYaz(hm, d.mod || "");
+
+  batGuncelle(veri ? d.batarya : null);
+  const vm = a ? S[4].normal : 12.31, am = a ? S[5].normal : 28.8;
+  aralikGuncelle("volt", veri ? d.voltaj : null, "V", 2, vm, 0.5, a ? S[4] : null);
+  aralikGuncelle("akim", veri ? d.akim : null, "A", 1, am, 5, a ? S[5] : null);
+  irtifaGuncelle(veri ? d.irtifa : null, d.min_irtifa || 9);
+  gpsGuncelle(veri ? d.uydu : null, d.fix);
+  htmlYaz($("uCipler"), chipHtml("UÇUŞ MODU", d.mod || "—") + chipHtml("HIZ", d.hiz === null || d.hiz === undefined ? "—" : sayi(d.hiz, 1) + " m/s") + chipHtml("MODEL REJİMİ", d.rejim || "—"));
+  gostergeGuncelle(veri ? d.skor : null);
+  caprazCiz(d);
+}
+
+/* ============================== SES ============================== */
+const Ses = {tercih: true, hazir: false, ctx: null, ad: null, son: null};
+try { Ses.tercih = localStorage.getItem("iha_ses") !== "0"; } catch (e) {}
+try { Ses.ad = localStorage.getItem("iha_ses_ad") || null; } catch (e) {}
+function sesTercihKaydet(){ try { localStorage.setItem("iha_ses", Ses.tercih ? "1" : "0"); } catch (e) {} }
+function sesAdKaydet(){ try { if (Ses.ad) localStorage.setItem("iha_ses_ad", Ses.ad); } catch (e) {} }
+/* Alarm cümleleri daha hızlı ve daha kalın (düşük perde) okunur, önünde kısa bir uyarı tonu çalar. Bazı sesler hız ve
+   perde ayarını yok sayar; o durumda farkı ses seçimi belirler (sağ üstteki seçim kutusu). */
+const SES_HIZ = 1.05, SES_PERDE = 0.8;
+const SES_DENEME = "Motor 1 arızası şüphesi. Güvenli bir yerde in.";
+/* Okunan cümleler ekrandaki "olası" yargısıyla aynı kesinlikte kalır (şüphe), ama kısa ve emir kipindedir. */
+function sesMetni(a){
+  if (a.tur === "motor" && a.motor) return "Motor " + a.motor + " arızası şüphesi. Güvenli bir yerde in.";
+  if (a.tur === "batarya") return "Batarya sorunu şüphesi. Güvenli bir yerde in.";
+  if (a.tur === "belirsiz") return "Anomali var, neden belirsiz. Uçuşu kontrol et.";
+  return a.anons;
+}
+function trSesler(){ try { return window.speechSynthesis.getVoices().filter((v) => /^tr/i.test(v.lang)); } catch (e) { return []; } }
+/* Kendiliğinden seçimde önce "Natural/Online" (sinir ağı) sesler, sonra Tolga/Ahmet gelir; eşitlikte tarayıcının sırası korunur. */
+function sesPuan(v){ const ad = v.name || ""; return (/natural|online/i.test(ad) ? 2 : 0) + (/tolga|ahmet/i.test(ad) ? 1 : 0); }
+function trSes(){
+  try {
+    const vs = window.speechSynthesis.getVoices();
+    if (!vs.length) return {bilinmiyor: true};
+    const tr = vs.filter((v) => /^tr/i.test(v.lang));
+    if (!tr.length) return null;
+    return tr.find((v) => v.name === Ses.ad) || tr.slice().sort((a, b) => sesPuan(b) - sesPuan(a))[0];
+  } catch (e) { return null; }
+}
+function sesKisaAd(v){ return (v.name || "").replace(/^Microsoft\s+/i, "").replace(/\s*-\s*Turkish.*$/i, "").trim() || "Türkçe ses"; }
+function sesSecKur(){
+  const s = $("sesSec"), tr = trSesler();
+  /* Seçim kutusu ses kilidi açılmadan da görünür: ilk tıklamada düzen kaymasın (kayarsa tıklama yanındaki bağlantıya ulaşmaz). */
+  if (tr.length < 2 || !Ses.tercih){ s.hidden = true; return; }
+  const anahtar = tr.map((v) => v.name).join("|");
+  if (s.dataset.liste !== anahtar){
+    s.dataset.liste = anahtar; s.textContent = "";
+    tr.forEach((v) => { const o = document.createElement("option"); o.value = v.name; o.textContent = "Ses: " + sesKisaAd(v); s.appendChild(o); });
+  }
+  const secili = trSes();
+  if (secili && !secili.bilinmiyor) s.value = secili.name;
+  s.hidden = false;
+}
+/* Alarm cümlesinden önce iki notalık kısa uyarı; konuşmanın ne kadar sonra başlaması gerektiğini (ms) döndürür. */
+function dikkat(){
+  try {
+    Ses.ctx = Ses.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = Ses.ctx.currentTime;
+    [[0, 659], [0.17, 880]].forEach(([dt, f]) => {
+      const o = Ses.ctx.createOscillator(), g = Ses.ctx.createGain();
+      o.type = "triangle"; o.frequency.value = f; o.connect(g); g.connect(Ses.ctx.destination);
+      g.gain.setValueAtTime(0.0001, t0 + dt); g.gain.exponentialRampToValueAtTime(0.3, t0 + dt + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.2);
+      o.start(t0 + dt); o.stop(t0 + dt + 0.22);
+    });
+    return 480;
+  } catch (e) { return 0; }
+}
+function bip(){
+  try {
+    Ses.ctx = Ses.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = Ses.ctx.currentTime;
+    [0, 0.28].forEach((dt) => {
+      const o = Ses.ctx.createOscillator(), g = Ses.ctx.createGain();
+      o.type = "square"; o.frequency.value = 880; o.connect(g); g.connect(Ses.ctx.destination);
+      g.gain.setValueAtTime(0.0001, t0 + dt); g.gain.exponentialRampToValueAtTime(0.25, t0 + dt + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.2);
+      o.start(t0 + dt); o.stop(t0 + dt + 0.22);
+    });
+  } catch (e) {}
+}
+/* alarm=true: önce uyarı tonu, sonra cümle. Onay cümlesi ("Sesli uyarı açık.") tonsuz okunur. */
+function konus(metin, alarm){
+  if (!Ses.tercih || !Ses.hazir) return false;
+  try {
+    if ("speechSynthesis" in window && "SpeechSynthesisUtterance" in window){
+      const v = trSes();
+      if (v === null){ bip(); metinYaz($("sesNot"), "Bu tarayıcıda Türkçe ses yok; uyarı bip sesiyle verilir."); $("sesNot").hidden = false; return true; }
+      const bekle = alarm ? dikkat() : 0;
+      const soyle = () => {
+        try {
+          const u = new SpeechSynthesisUtterance(metin);
+          u.lang = "tr-TR"; if (v && !v.bilinmiyor) u.voice = v;
+          u.rate = SES_HIZ; u.pitch = SES_PERDE; u.volume = 1;
+          Ses.son = u;   /* tarayıcı okuma bitmeden nesneyi çöpe atmasın */
+          window.speechSynthesis.speak(u);
+        } catch (e) { bip(); }
+      };
+      if (bekle) setTimeout(soyle, bekle); else soyle();
+      return true;
+    }
+  } catch (e) {}
+  bip();
+  return true;
+}
+function sesDugmeCiz(){
+  const b = $("sesBtn"), y = $("sesYazi");
+  const acik = Ses.tercih && Ses.hazir, bekliyor = Ses.tercih && !Ses.hazir;
+  b.className = "ses" + (bekliyor ? " bekliyor" : !Ses.tercih ? " kapali" : "");
+  b.setAttribute("aria-pressed", acik ? "true" : "false");
+  metinYaz(y, acik ? "Sesli uyarı açık" : bekliyor ? "Sesli uyarı: açmak için tıkla" : "Sesli uyarı kapalı");
+  $("sesDalga1").style.display = $("sesDalga2").style.display = Ses.tercih ? "" : "none";
+  sesSecKur();
+}
+$("sesSec").addEventListener("change", (ev) => { Ses.ad = ev.target.value; sesAdKaydet(); konus(SES_DENEME, true); });
+try { window.speechSynthesis.addEventListener("voiceschanged", sesSecKur); } catch (e) {}
+function sesAc(){ if (!Ses.hazir){ Ses.hazir = true; try { Ses.ctx = Ses.ctx || new (window.AudioContext || window.webkitAudioContext)(); if (Ses.ctx.state === "suspended") Ses.ctx.resume(); } catch (e) {} } }
+$("sesBtn").addEventListener("click", () => {
+  if (Ses.tercih && !Ses.hazir){ sesAc(); sesDugmeCiz(); konus("Sesli uyarı açık."); return; }
+  Ses.tercih = !Ses.tercih; sesTercihKaydet(); sesAc(); sesDugmeCiz();
+  if (Ses.tercih) konus("Sesli uyarı açık.");
+  else { try { window.speechSynthesis.cancel(); } catch (e) {} }
+});
+/* Tarayıcılar sesi sayfaya bir tıklamadan önce çaldırmaz: sayfadaki ilk tıklama / tuş sesi hazırlar
+   (ses düğmesinin kendi tıklaması hariç; onu düğme işler). */
+["pointerdown", "keydown"].forEach((ev) => document.addEventListener(ev, (olay) => {
+  if (olay.target && olay.target.closest && olay.target.closest("#sesBtn")) return;
+  if (!Ses.hazir && Ses.tercih){ sesAc(); sesDugmeCiz(); }
+}, {capture: true}));
+/* Alarm başlayınca bir kez konuş. Kısa titreşimler (1-3 sn) konuşulmaz: net neden varsa 2 sn, belirsizse 4 sn
+   aynı durumda kalması beklenir. Alarm sürerken neden değişirse (motor -> batarya) yeniden konuşur;
+   net neden bir kez söylendiyse aynı alarmda "belirsiz" tekrar söylenmez. */
+const duyuru = {model: null, gps: null};
+function sesKontrol(d){
+  const simdi = Date.now();
+  const a = d.baglanti && d.durum === "alarm" ? d.aciklama : null;
+  if (a){
+    const an = a.tur === "belirsiz" ? "belirsiz" : a.tur + (a.motor || "");
+    if (!duyuru.model) duyuru.model = {anahtar: null, t0: 0, soylendi: false, net: false};
+    const k = duyuru.model;
+    if (k.anahtar !== an){ k.anahtar = an; k.t0 = simdi; k.soylendi = false; }
+    if (!k.soylendi && a.anons && !(an === "belirsiz" && k.net) && simdi - k.t0 >= (an === "belirsiz" ? 4000 : 2000)){
+      k.soylendi = konus(sesMetni(a), true);
+      if (k.soylendi && an !== "belirsiz") k.net = true;
+    }
+  } else duyuru.model = null;
+  if (d.baglanti && d.jamming){
+    if (!duyuru.gps) duyuru.gps = {t0: simdi, soylendi: false};
+    const k = duyuru.gps;
+    if (!k.soylendi && d.jamming.anons && simdi - k.t0 >= 2000) k.soylendi = konus(d.jamming.anons, true);
+  } else duyuru.gps = null;
+}
+
+/* ============================== ANA DÖNGÜ ============================== */
+const BASLIK_ONEKI = {alarm: "ALARM · ", jamming: "GPS ALARMI · "};
+let sonSaat = null, sonDegisim = Date.now();
+function ciz(d){
+  metinYaz($("drone"), d.drone_id || "");
+  metinYaz($("canli"), d.baglanti ? "CANLI · " + (d.saat || "—") : "Bağlantı yok · son " + (d.saat || "—"));
+  $("nokta").className = "nokta" + (d.baglanti ? "" : " kapali");
+  document.title = (BASLIK_ONEKI[d.durum] || "") + "İHA İzleme";
+  kahramanCiz(d); panelCiz(d); grafikCiz(d); zamanCiz(d); olayCiz(d); sesKontrol(d);
+}
+async function yenile(){
+  try {
+    const r = await fetch("/durum", {cache: "no-store"});
+    const d = await r.json();
+    if (d.saat !== sonSaat){ sonSaat = d.saat; sonDegisim = Date.now(); }
+    if (d.baglanti && Date.now() - sonDegisim > 6000){
+      d.durum = "baglanti_yok"; d.baslik = "Veri akışı durdu"; d.cumle = "Exporter 6 saniyedir yeni durum göndermedi."; d.aciklama = null; d.jamming = null;
+      d.baglanti = false; d.oneri = {metin: "Bağlantıyı kontrol et.", alt: "SITL, MAVProxy ve exporter çalışıyor mu?"};
+    }
+    ciz(d);
+  } catch (e) {
+    ciz({durum: "baglanti_yok", baslik: "Ekran sunucusuna ulaşılamıyor", cumle: "exporter çalışıyor mu?", baglanti: false, olaylar: [], motorlar: null, ucus: null,
+         oneri: {metin: "exporter'ı kontrol et.", alt: "Ekran sunucusu exporter ile birlikte açılır."}});
+  }
+}
+droneKur(); gostergeKur(); enerjiKur();
+aralikKur("voltAlan", "volt", "VOLTAJ"); aralikKur("akimAlan", "akim", "AKIM"); gpsKur();
+sesDugmeCiz();
+yenile(); setInterval(yenile, 1000);
+</script>
+</body>
+</html>
