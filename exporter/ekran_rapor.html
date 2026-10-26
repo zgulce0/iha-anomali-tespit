@@ -14,7 +14,9 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;background:var(--zemin);color:var(--yazi);font-family:var(--sans);line-height:1.5}
-.sayfa{max-width:1040px;margin:0 auto;padding:24px 24px 56px;display:flex;flex-direction:column;gap:20px}
+.sayfa{max-width:1360px;margin:0 auto;padding:24px 24px 56px;display:flex;flex-direction:column;gap:20px}
+#ic{display:flex;flex-direction:column;gap:20px}
+.alarm-liste{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,600px),1fr));gap:16px;align-items:start}
 .mono{font-family:var(--mono)}
 .arac{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
 .arac .sol,.arac .sag{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
@@ -36,7 +38,7 @@ p{margin:0}
 .hap.mavi{color:var(--mavi);border-color:#B7CBEF}
 .rozetler{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .ozet{font-size:18px;line-height:1.55;max-width:70ch}
-.sayilar{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:6px}
+.sayilar{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:6px}
 .sayi{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--cizgi2);border-radius:12px;background:#F8FAFC;min-width:0}
 .sayi .e{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--yazi3)}
 .sayi .d{font-family:var(--mono);font-size:22px;font-weight:600}
@@ -75,10 +77,44 @@ td .mini{display:inline-block;height:8px;border-radius:4px;background:var(--kirm
 .yontem ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--yazi2)}
 .bos{padding:40px 8px;color:var(--yazi2);font-size:16px}
 .ipucu{position:fixed;pointer-events:none;background:#0F1720;color:#fff;font-size:12px;padding:6px 9px;border-radius:6px;z-index:5;white-space:nowrap}
+button.d.aktif{background:var(--yazi);color:#fff;border-color:var(--yazi)}
+.sutun{display:contents}
+
+/* PANO: pencere yeterince büyükse rapor yan yana düzenlenir ve pencereye ölçeklenir; sayfayı kaydırmak gerekmez.
+   Solda özet ve grafikler, sağda alarmlar (çok alarm varsa yalnız o kutu kendi içinde kayar). Yazdırırken kapatılır. */
+body.pano{overflow:hidden}
+body.pano .sayfa{position:fixed;top:0;left:0;transform-origin:0 0;max-width:none;margin:0;padding:12px 20px 16px;gap:12px;overflow:hidden}
+body.pano #ic{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:14px}
+body.pano #ic>.kagit:only-child{grid-column:1/-1;align-self:start}
+body.pano .sutun{display:flex;flex-direction:column;gap:14px;min-height:0;min-width:0}
+body.pano .kagit{padding:16px 20px;border-radius:14px}
+body.pano h1{font-size:30px}
+body.pano h2{margin-bottom:8px}
+body.pano .ozet{font-size:16px}
+body.pano .sayilar{grid-template-columns:repeat(8,minmax(0,1fr));gap:10px}
+body.pano .sayi{padding:8px 10px}
+body.pano .sayi .d{font-size:18px}
+body.pano .sayi .e{font-size:10px}
+body.pano .sayi .a{font-size:11px;line-height:1.3}
+body.pano .zc,body.pano .grafik{min-width:0}
+body.pano .dipnot{margin-top:6px;font-size:12px}
+body.pano .gr-kart{flex:1 1 0;min-height:0;display:flex;flex-direction:column}
+body.pano #grafikAlan{flex:1 1 0;min-height:0;position:relative;overflow:hidden}
+body.pano #grafikAlan svg{position:absolute;inset:0;width:100%;height:100%}
+body.pano .alarmlar{flex:1 1 0;min-height:0;overflow:auto}
+body.pano .alarm-liste{grid-template-columns:minmax(0,1fr)}
+body.pano .alarm{padding:16px 18px;gap:10px}
+body.pano .alarm .cumle{font-size:15px}
+body.pano table{min-width:0;font-size:13px}
+body.pano .yontem{flex:none;padding:12px 18px}
+body.pano .yontem ul{font-size:12.5px;gap:3px}
+body.pano .yontem h2{margin-bottom:6px}
 @media (max-width:640px){.sayfa{padding:16px}.kagit{padding:20px 16px}.alarm{padding:18px 14px}}
 @media print{
   body{background:#fff}
   .sayfa{max-width:none;padding:0;gap:14px}
+  #ic{gap:0}
+  .alarm-liste{display:flex;flex-direction:column}
   .kagit{border:0;padding:0;border-radius:0;margin-bottom:14px;break-inside:avoid;page-break-inside:avoid}
   .kagit.alarmlar{break-inside:auto;page-break-inside:auto}
   h2{break-after:avoid;page-break-after:avoid}
@@ -93,7 +129,7 @@ td .mini{display:inline-block;height:8px;border-radius:4px;background:var(--kirm
 <div class="sayfa">
   <div class="arac">
     <div class="sol"><a class="d" id="canliBag" href="/">← Canlı ekran</a><span id="secici" class="sol"></span></div>
-    <div class="sag"><span class="alt" id="yenileNot"></span><button type="button" class="d" id="yazdir">Yazdır / PDF olarak kaydet</button></div>
+    <div class="sag"><span class="alt" id="yenileNot"></span><button type="button" class="d aktif" id="panoBtn" aria-pressed="true" title="Sayfayı pencereye sığdır (kaydırma gerekmez); kapatınca normal akışa döner" hidden>Sığdır</button><button type="button" class="d" id="yazdir">Yazdır / PDF olarak kaydet</button></div>
   </div>
   <main id="ic"><div class="kagit"><p class="bos">Yükleniyor…</p></div></main>
 </div>
@@ -122,8 +158,9 @@ const N = Number(new URLSearchParams(location.search).get("n")) || 0;
 let sonUcus = null;
 
 /* ---------- zaman çizelgesi ---------- */
-function cizelge(u){
-  const W = 960, X0 = 20, toplam = Math.max(u.sure_sn, 30), SIRA = [40, 24, 8];
+function cizelge(u, kw){
+  /* kw: pano modunda kutunun genişliği (yazılar çarpılmasın diye çizim kutuya göre yapılır); yoksa 1000 birimlik sabit genişlik */
+  const KW = kw ? Math.max(700, Math.round(kw)) : 1000, W = KW - 40, X0 = 20, toplam = Math.max(u.sure_sn, 30), SIRA = [40, 24, 8];
   const X = (t) => X0 + sinirla(t, 0, toplam) / toplam * W;
   let g = '<line x1="' + X0 + '" y1="62" x2="' + (X0 + W) + '" y2="62" stroke="#CBD5E0" stroke-width="3" stroke-linecap="round"/>';
   const son = SIRA.map(() => -1e9);
@@ -140,12 +177,12 @@ function cizelge(u){
   });
   g += '<text x="' + X0 + '" y="110" font-size="12" fill="#475669">' + esc(u.kalkis) + ' kalkış</text>';
   g += '<text x="' + (X0 + W) + '" y="110" text-anchor="end" font-size="12" fill="#475669">' + (u.devam ? "şimdi" : "iniş " + esc(u.bitis || "")) + '</text>';
-  return '<div class="kaydir"><svg class="zc" viewBox="0 0 1000 120" role="img" aria-label="Uçuş zaman çizelgesi: kırmızı bloklar model alarmları, turuncu şerit GPS alarmları">' + g + '</svg></div>';
+  return '<div class="kaydir"><svg class="zc" viewBox="0 0 ' + KW + ' 120" role="img" aria-label="Uçuş zaman çizelgesi: kırmızı bloklar model alarmları, turuncu şerit GPS alarmları">' + g + '</svg></div>';
 }
 
 /* ---------- skor grafiği (logaritmik) ---------- */
-function skorGrafik(u){
-  const W = 1000, H = 320, L = 58, R = 34, T = 16, B = 36, toplam = Math.max(u.sure_sn, 30), k0 = saatSn(u.kalkis);
+function skorGrafik(u, W0, H0){
+  const W = W0 || 1000, H = H0 || 320, L = 58, R = 34, T = 16, B = 36, toplam = Math.max(u.sure_sn, 30), k0 = saatSn(u.kalkis);
   let seri = u.seri.slice();
   // çok uzun uçuşta tepe değerleri koruyarak seyrelt
   if (seri.length > 2000){
@@ -256,7 +293,7 @@ function ozetCumle(u){
 function sayiKutu(e, d, a, k){ return '<div class="sayi"><span class="e">' + esc(e) + '</span><span class="d ' + (k || "") + '">' + esc(d) + '</span>' + (a ? '<span class="a">' + esc(a) + '</span>' : "") + '</div>'; }
 function ciz(g){
   if (!g.ucus){
-    $("ic").innerHTML = '<div class="kagit"><div class="baslik-blok"><span class="ust-et">OLAY RAPORU</span><h1>Henüz uçuş kaydı yok</h1></div><p class="bos">Motorlar çalışıp drone havalandığında kayıt başlar. Rapor, inişten sonra da bu adreste durur. (Kayıt bellektedir: exporter kapanınca silinir.)</p></div>';
+    $("ic").innerHTML = '<div class="kagit"><div class="baslik-blok"><span class="ust-et">OLAY RAPORU</span><h1>Henüz uçuş kaydı yok</h1></div><p class="bos">Motorlar çalışıp drone havalandığında kayıt başlar. Rapor, inişten sonra da bu adreste durur. (Kayıt bellektedir: exporter kapanınca silinir.)</p><p class="bos" style="padding-top:0">Yerdeyken olan alarmlar (ör. GPS jamming) rapora girmez; canlı ekrandaki "Son olaylar" tablosunda görünür.</p></div>';
     $("secici").innerHTML = ""; return;
   }
   const u = g.ucus, modelSn = u.seri.filter((p) => p[1] !== null).length, kapsam = u.seri.length ? Math.round(modelSn / u.seri.length * 100) : 0;
@@ -264,8 +301,8 @@ function ciz(g){
   let sec = "";
   for (let i = 0; i < g.adet; i++) sec += '<a class="d' + (i === g.n ? " aktif" : "") + '" href="/rapor?n=' + i + '">' + (i === 0 ? "Son uçuş" : i + " önceki") + '</a>';
   $("secici").innerHTML = g.adet > 1 ? sec : "";
-  const batarya = u.batarya_ilk !== null && u.batarya_ilk !== undefined ? "%" + u.batarya_ilk + " → %" + u.batarya_son : "—";
-  const html =
+  const batarya = u.batarya_ilk !== null && u.batarya_ilk !== undefined ? "%" + u.batarya_ilk + "→%" + u.batarya_son : "—";
+  const html = '<div class="sutun sol">' +
     '<section class="kagit"><div class="baslik-blok"><div class="rozetler"><span class="ust-et">OLAY RAPORU</span><span class="hap mavi">SİMÜLASYON</span><span class="hap ' + (u.devam ? "dev" : "bit") + '">' + (u.devam ? "● uçuş sürüyor (anlık rapor)" : "✓ uçuş bitti") + '</span></div>' +
     '<h1>' + esc(g.drone_id || "") + ' · ' + esc(tarihYaz(u.tarih)) + ' · ' + esc(u.kalkis) + (u.devam ? "" : " – " + esc(u.bitis)) + '</h1>' +
     '<p class="ozet">' + esc(ozetCumle(u)) + '</p></div>' +
@@ -273,21 +310,56 @@ function ciz(g){
     sayiKutu("EN UZUN ALARM", sureYaz(u.alarm_en_uzun_sn)) + sayiKutu("UÇUŞ SÜRESİ", sureYaz(u.sure_sn)) +
     sayiKutu("EN YÜKSEK SKOR", enSkor ? sayi(enSkor, 2) + "×" : "—", "alarm sınırı 1,0×") + sayiKutu("EN YÜKSEK İRTİFA", sayi(u.irtifa_max, 1) + " m") +
     sayiKutu("BATARYA", batarya, "başta → sonda") + sayiKutu("MODEL İZLEDİ", "%" + kapsam, "uçuşun bu kadarında karar verebildi") + '</div></section>' +
-    '<section class="kagit"><h2>UÇUŞ ZAMAN ÇİZELGESİ</h2>' + cizelge(u) + '<p class="dipnot">Kırmızı bloklar model alarmları, turuncu şerit GPS jamming alarmlarıdır. Numaralar aşağıdaki alarm kartlarıyla aynıdır.</p></section>' +
-    '<section class="kagit"><h2>MODEL SKORU ZAMAN İÇİNDE</h2><div class="kaydir" id="grafikAlan"></div><p class="dipnot">Skor = Mahalanobis mesafesi ÷ modelin eşiği (logaritmik eksen). 1\'in üstü alarmdır. Çizgideki boşluklar modelin karar vermediği anlardır (yerde, kalkışta, mod geçişlerinde; irtifa en az ' + sayi(u.min_irtifa, 0) + ' m ve 5 sn sabit uçuş gerekir).</p></section>' +
-    '<section class="kagit alarmlar"><h2>ALARMLAR (' + u.alarmlar.length + ')</h2>' + (u.alarmlar.length ? '<div style="display:flex;flex-direction:column;gap:16px">' + u.alarmlar.map((a) => alarmKart(a, u)).join("") + '</div>' : '<p class="alt">Bu uçuşta alarm kaydı yok.</p>') + '</section>' +
+    '<section class="kagit"><h2>UÇUŞ ZAMAN ÇİZELGESİ</h2><div class="kaydir" id="zcAlan"></div><p class="dipnot">Kırmızı bloklar model alarmları, turuncu şerit GPS jamming alarmlarıdır. Numaralar alarm kartlarıyla aynıdır.</p></section>' +
+    '<section class="kagit gr-kart"><h2>MODEL SKORU ZAMAN İÇİNDE</h2><div class="kaydir" id="grafikAlan"></div><p class="dipnot">Skor = Mahalanobis mesafesi ÷ modelin eşiği (logaritmik eksen). 1\'in üstü alarmdır. Çizgideki boşluklar modelin karar vermediği anlardır (yerde, kalkışta, mod geçişlerinde; irtifa en az ' + sayi(u.min_irtifa, 0) + ' m ve 5 sn sabit uçuş gerekir).</p></section></div>' +
+    '<div class="sutun sag"><section class="kagit alarmlar"><h2>ALARMLAR (' + u.alarmlar.length + ')</h2>' + (u.alarmlar.length ? '<div class="alarm-liste">' + u.alarmlar.map((a) => alarmKart(a, u)).join("") + '</div>' : '<p class="alt">Bu uçuşta alarm kaydı yok.</p>') + '</section>' +
     '<section class="kagit yontem"><h2>YÖNTEM VE SINIRLAR</h2><ul>' +
     '<li>Bu bir simülasyon kaydıdır (ArduPilot SITL). Kayıt, motorlar çalışınca (armed) başlar; exporter uçuş sırasında başladıysa kayıt o andan başlar.</li>' +
     '<li>Neden, iki ayrı kuralın çapraz kontrolüyle belirlenir (tür kuralı ve modelin sinyal payı). Biri ayrışırsa "neden ayırt edilemedi" denir.</li>' +
     '<li>Teşhis payı bir olasılık değildir: alarm skorunun seçilen sinyalden gelen kısmını gösterir.</li>' +
     '<li>"Olası neden" yalnızca simülatörde tanımlı arıza türlerini (tek motor, batarya) ayırt eder; voltaj düşüşü ile iç direnç artışı aynı izi bırakır.</li>' +
     '<li>Normal bant, modelin öğrendiği ortalama ± 3 standart sapmadır (voltaj ve akım için). Simülatörde bu bant çok dardır.</li>' +
-    '<li>Öneri metinleri basit kurallardır ve henüz doğrulanmadı. Kayıt bellektedir; exporter kapanınca silinir (en fazla 5 uçuş).</li></ul></section>';
+    '<li>Öneri metinleri basit kurallardır ve henüz doğrulanmadı. Kayıt bellektedir; exporter kapanınca silinir (en fazla 5 uçuş).</li></ul></section></div>';
   $("ic").innerHTML = html;
-  const gr = skorGrafik(u);
-  $("grafikAlan").innerHTML = gr.svg;
+  sonU = u;
+  cizGrafikler();
+}
+/* Çizelge ve skor grafiği: normalde sabit boyutlu; pano modunda kutunun gerçek boyutuna göre çizilir. */
+let sonU = null;
+function cizGrafikler(){
+  const u = sonU, zc = $("zcAlan"), ga = $("grafikAlan");
+  if (!u || !zc || !ga) return;
+  const pano = document.body.classList.contains("pano");
+  zc.innerHTML = cizelge(u, pano ? zc.clientWidth : 0);
+  ga.innerHTML = "";
+  const gr = pano ? skorGrafik(u, Math.max(520, ga.clientWidth), Math.max(180, ga.clientHeight)) : skorGrafik(u);
+  ga.innerHTML = gr.svg;
   imlecKur(gr);
 }
+/* ---------- PANO: pencereye sığdır (canlı ekrandaki ile aynı mantık) ---------- */
+const PANO_W = 1700, PANO_H = 1000, PANO_MIN = 0.75;
+const Pano = {tercih: true};
+try { Pano.tercih = localStorage.getItem("iha_pano") !== "0"; } catch (e) {}
+let yazdiriyor = false;
+function panoKur(){
+  const s = document.querySelector(".sayfa"), dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth, h = window.innerHeight, z = Math.min(w / PANO_W, h / PANO_H);
+  const olur = z * dpr >= PANO_MIN, ac = olur && Pano.tercih && !yazdiriyor, b = $("panoBtn");
+  b.hidden = !olur; b.setAttribute("aria-pressed", ac ? "true" : "false"); b.classList.toggle("aktif", Pano.tercih);
+  document.body.classList.toggle("pano", ac);
+  if (ac){ s.style.width = (w / z) + "px"; s.style.height = (h / z) + "px"; s.style.transform = "scale(" + z + ")"; }
+  else { s.style.width = ""; s.style.height = ""; s.style.transform = ""; }
+  cizGrafikler();
+}
+$("panoBtn").addEventListener("click", () => {
+  Pano.tercih = !Pano.tercih;
+  try { localStorage.setItem("iha_pano", Pano.tercih ? "1" : "0"); } catch (e) {}
+  panoKur();
+});
+window.addEventListener("resize", panoKur);
+/* Yazdırırken pano kapanır (normal akışlı, sayfalara bölünen düzen kullanılır); sonra geri açılır. */
+window.addEventListener("beforeprint", () => { yazdiriyor = true; panoKur(); });
+window.addEventListener("afterprint", () => { yazdiriyor = false; panoKur(); });
 /* Hata iki ayrı yerden gelebilir: veri alınamadı (sunucu/adres) ya da veri geldi ama çizilirken kod hata verdi.
    İkisi ayrı yazılır; ayrıntı ve sayfa adresi de gösterilir ki sebep tahmin edilmesin. */
 function hataGoster(baslik, e){
@@ -309,8 +381,7 @@ async function yukle(){
     const imza = JSON.stringify(g);
     if (imza !== sonUcus){ sonUcus = imza; ciz(g); }
     $("yenileNot").textContent = g.ucus && g.ucus.devam ? "Uçuş sürüyor: sayfa 5 sn'de bir yenilenir." : "";
-    if (g.ucus && g.ucus.devam) setTimeout(yukle, 5000);
-  } catch (e) {
+    if (g.ucus && g.ucus.devam) setTimeout(yukle, 5000);  } catch (e) {
     hataGoster("Veri geldi ama rapor çizilirken hata oldu.", e);
   }
 }
@@ -327,6 +398,7 @@ $("canliBag").addEventListener("click", (ev) => {
     }
   } catch (e) {}
 });
+panoKur();
 yukle();
 </script>
 </body>

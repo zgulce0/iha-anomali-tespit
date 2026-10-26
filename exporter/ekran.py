@@ -224,6 +224,12 @@ class EkranDurumu:
                     self.alarm_baslangic = saat
             elif jam_aktif:
                 durum, baslik, cumle, oneri = 'jamming', jam['baslik'], jam['cumle'], jam['oneri']
+            elif sebep == 'motorlar kapali':
+                # Yerde: bu bir arıza ya da belirsizlik değil, model zaten yalnızca uçuşta karar verir
+                durum, baslik = 'izlenemiyor', 'Yerde, motorlar kapalı'
+                cumle = 'İzleme, motorlar çalışıp drone havalandıktan sonra başlar.'
+                oneri = {'metin': 'İzleme uçuşta başlar.',
+                         'alt': 'Koşullar sağlanınca model kendiliğinden devreye girer.'}
             elif sebep is not None:
                 durum, baslik = 'izlenemiyor', 'Sistem şu an karar veremiyor'
                 cumle = SEBEP_METNI.get(sebep, f"Sebep: {sebep}.")

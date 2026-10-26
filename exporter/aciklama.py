@@ -176,7 +176,7 @@ class Aciklayici:
             sonuc['guven'], sonuc['guven_kaynak'] = batarya_pay, 'Voltaj + akım'
             sonuc['oneri'] = {'metin': 'Güvenli bir yerde in.',
                               'alt': f"Voltaj {_sayi(x[vi], 2)} V ve akım {_sayi(x[ai], 1)} A normal bandın dışında."}
-            sonuc['anons'] = 'Batarya sorunu olabilir. İnmeni öneriyorum.'
+            sonuc['anons'] = 'Batarya sorunu şüphesi. Güvenli bir yerde in.'
         elif secim[0] == 'motor':
             sonuc.update(self._motor(isimler[secim[1]], secim[1], x, d, r, pay))
             n = sonuc['motor']
@@ -187,7 +187,7 @@ class Aciklayici:
             else:
                 alt = f"Motor {n} PWM değeri normalden düşük."
             sonuc['oneri'] = {'metin': 'Güvenli bir yerde in.', 'alt': alt, 'kullanim_yuzde': kul}
-            sonuc['anons'] = f"Motor {n} arızası olabilir. İnmeni öneriyorum."
+            sonuc['anons'] = f"Motor {n} arızası şüphesi. Güvenli bir yerde in."
         else:
             ilk = sorted(range(len(pay)), key=lambda i: -pay[i])[:3]
             liste = ', '.join(f"{ETIKETLER.get(isimler[i], isimler[i])} ({_sayi(d[i], 2 if i >= 4 else 0, True)})"
