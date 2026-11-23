@@ -12,11 +12,12 @@
 """GPS spoofing deneyi + kayit (SITL).
 
 Kullanim (proje kokunden; SITL acik, otomatik_ucus.py ve demo_ariza.py KAPALI):
-    venv/bin/python exporter/spoof_deney.py <ad> [ani|yavas|hepsi] [gurultu]
+    venv/bin/python exporter/spoof_deney.py <ad> [ani|yavas|tutarli|hepsi] [gurultu]
 
     ad       dosya adinda kullanilir (ornek: ilk_deneme)
     secim    ani   -> sadece ani sicramalar
-             yavas -> sadece yavas kaymalar
+             yavas -> sadece yavas kaymalar (sadece konum kayar, GPS hizi dogru kalir)
+             tutarli -> konum VE GPS hizi birlikte kayar (SIM_GPS1_GLTV; ArduPilot 6 Ekim 2026 ve sonrasi)
              hepsi -> ikisi de (varsayilan)
     gurultu  yazilirsa SITL'in GPS gurultusu acilir (SIM_GPS1_HNSE ve SIM_GPS1_VERR_X/Y).
              Not: SITL'in yatay "gurultusu" rastgele degil, 12,6 sn'lik yavas bir dairesel
@@ -24,7 +25,14 @@ Kullanim (proje kokunden; SITL acik, otomatik_ucus.py ve demo_ariza.py KAPALI):
 
 Spoofing, SITL'in SIM_GPS1_GLTCH_X parametresiyle verilir. Bu parametre METRE DEGIL
 DERECE cinsindendir: GPS'in bildirdigi enleme dogrudan eklenir (0.0001 derece ~ 11 m kuzey).
+'tutarli' senaryolar SIM_GPS1_GLTV_X parametresini kullanir (m/s, kuzey): GPS hem hizina bu
+degeri ekler hem de konumunu bu hizla surekli kaydirir. Yani konum ile hiz birbirini tutar;
+gercek bir saldirganin yapacagi gibi. Sifira cekilince biriken kayma bir anda silinir.
 Etiket sutunu, kaymanin gercekten uygulandigi araligi gosterir.
+
+IMU: RAW_IMU ve ATTITUDE saniyede 50 kez istenir. Her satirda anlik degerlerin yaninda,
+o satira kadar gelen butun IMU olcumlerinin kuzey/dogu/asagi ivme ORTALAMASI da yazilir
+(imu_an_ort, imu_ae_ort, imu_ad_ort; m/s2, yercekimi cikarilmis). Dead-reckoning icin bu kullanilir.
 """
 import math
 import os
@@ -51,6 +59,7 @@ M_DERECE = 1.0 / 111320.0   # 1 metre kac derece enlem eder (yaklasik)
 # Spoofing senaryolari. Her biri: (etiket, tur, deger, sure_sn)
 #   ani   : konum bir anda 'deger' metre kuzeye kayar ve sure boyunca orada kalir
 #   yavas : konum saniyede 'deger' metre hizla kuzeye kayar (sure boyunca surekli artar)
+#   tutarli : yavas gibi, ama GPS'in bildirdigi HIZ da ayni miktarda degisir (konum-hiz tutarli)
 SENARYOLAR = [
     ('spoof_ani_2m',      'ani',   2.0,  30),
     ('spoof_ani_5m',      'ani',   5.0,  30),
@@ -61,8 +70,14 @@ SENARYOLAR = [
     ('spoof_yavas_0.2ms', 'yavas', 0.2,  60),   # 60 sn'de 12 m
     ('spoof_yavas_0.5ms', 'yavas', 0.5,  40),   # 40 sn'de 20 m
     ('spoof_yavas_1ms',   'yavas', 1.0,  30),   # 30 sn'de 30 m
+    ('spoof_tutarli_0.1ms', 'tutarli', 0.1, 90),  # 90 sn'de 9 m
+    ('spoof_tutarli_0.2ms', 'tutarli', 0.2, 60),  # 60 sn'de 12 m
+    ('spoof_tutarli_0.5ms', 'tutarli', 0.5, 40),  # 40 sn'de 20 m
+    ('spoof_tutarli_1ms',   'tutarli', 1.0, 30),  # 30 sn'de 30 m
 ]
 YAVAS_ADIM_SN = 0.5    # yavas kaymada parametrenin guncellenme araligi
+GLTV = [('SIM_GPS1_GLTV_X', 0.0), ('SIM_GPS1_GLTV_Y', 0.0), ('SIM_GPS1_GLTV_Z', 0.0)]   # tutarli kayma
+G = 9.80665
 
 TEMIZLIK = [('SIM_GPS1_GLTCH_X', 0.0), ('SIM_GPS1_GLTCH_Y', 0.0),
             ('SIM_GPS1_HNSE', 0.0), ('SIM_GPS1_VERR_X', 0.0), ('SIM_GPS1_VERR_Y', 0.0)]
@@ -78,8 +93,8 @@ MESAJ_HIZLARI = {
     24: 10,    # GPS_RAW_INT          ham GPS konumu, hizi, uydu, fix
     33: 10,    # GLOBAL_POSITION_INT  ArduPilot'un EKF tahmini (konum ve hiz)
     32: 10,    # LOCAL_POSITION_NED   EKF tahmini, kalkis noktasina gore metre (kuzey, dogu, asagi)
-    27: 10,    # RAW_IMU              ivmeolcer (milli-g)
-    30: 10,    # ATTITUDE             yatis, egim, yon
+    27: 50,    # RAW_IMU              ivmeolcer (milli-g); 50 Hz -> satir basina ~10 olcumun ortalamasi
+    30: 50,    # ATTITUDE             yatis, egim, yon (ivmeyi kuzey/doguya cevirmek icin)
     193: 5,    # EKF_STATUS_REPORT    EKF'nin kendi guven degerleri
     164: 10,   # SIMSTATE             SADECE SIMULATORDE: aracin GERCEK konumu (spoofing'den etkilenmez)
 }
@@ -90,7 +105,8 @@ BASLIK = ('zaman_sn,etiket,glitch_m,armed,mod,irtifa_m,'
           'lokal_x,lokal_y,lokal_z,lokal_vx,lokal_vy,lokal_vz,'
           'ivme_x_mg,ivme_y_mg,ivme_z_mg,roll_der,pitch_der,yaw_der,'
           'ekf_bayrak,ekf_hiz_var,ekf_konum_var,gps_ekf_fark_m,'
-          'gercek_enlem,gercek_boylam,gercek_sapma_m')
+          'gercek_enlem,gercek_boylam,gercek_sapma_m,'
+          'imu_an_ort,imu_ae_ort,imu_ad_ort,imu_n')
 
 
 class Hata(Exception):
@@ -107,6 +123,8 @@ class Dusme(Exception):
 son = {}
 param_degerleri = {}
 durum = {}
+imu_top = [0.0, 0.0, 0.0, 0]   # satir arasi IMU toplami: kuzey, dogu, asagi ivme, olcum sayisi
+temizlik = []                  # deney sonunda sifirlanacak parametreler
 baglanti = None
 dosya = None
 olay_dosya = None
@@ -114,12 +132,14 @@ T0 = 0.0
 
 
 def sifirla():
-    global son, param_degerleri, durum
+    global son, param_degerleri, durum, imu_top
+    imu_top = [0.0, 0.0, 0.0, 0]
     son = {k: None for k in (
         'armed', 'irtifa', 'gps_enlem', 'gps_boylam', 'gps_hiz', 'gps_rota', 'gps_eph', 'uydu', 'fix',
         'ekf_enlem', 'ekf_boylam', 'ekf_vx', 'ekf_vy', 'ekf_vz',
         'lx', 'ly', 'lz', 'lvx', 'lvy', 'lvz', 'ax', 'ay', 'az', 'roll', 'pitch', 'yaw',
-        'ekf_bayrak', 'ekf_hiz_var', 'ekf_konum_var', 'gercek_enlem', 'gercek_boylam')}
+        'ekf_bayrak', 'ekf_hiz_var', 'ekf_konum_var', 'gercek_enlem', 'gercek_boylam',
+        'roll_rad', 'pitch_rad', 'yaw_rad')}
     param_degerleri = {}
     durum = {'etiket': 'hazirlik', 'glitch_m': 0.0, 'havada': False,
              'sonraki_yazim': 0.0, 'son_yazdirma': 0.0, 'son_paket': 0.0, 'satir': 0}
@@ -163,10 +183,12 @@ def guncelle(m):
         son['lvx'], son['lvy'], son['lvz'] = round(m.vx, 3), round(m.vy, 3), round(m.vz, 3)
     elif tip == 'RAW_IMU':                            # IVMEOLCER: GPS'ten bagimsiz, spoofing etkilemez
         son['ax'], son['ay'], son['az'] = m.xacc, m.yacc, m.zacc
+        imu_biriktir(m.xacc, m.yacc, m.zacc)
     elif tip == 'ATTITUDE':
         son['roll'] = round(math.degrees(m.roll), 2)
         son['pitch'] = round(math.degrees(m.pitch), 2)
         son['yaw'] = round(math.degrees(m.yaw), 2)
+        son['roll_rad'], son['pitch_rad'], son['yaw_rad'] = m.roll, m.pitch, m.yaw
     elif tip == 'EKF_STATUS_REPORT':
         son['ekf_bayrak'] = m.flags
         son['ekf_hiz_var'] = round(m.velocity_variance, 4)
@@ -179,6 +201,21 @@ def guncelle(m):
         if isinstance(pid, bytes):
             pid = pid.decode('utf-8', 'ignore')
         param_degerleri[pid.rstrip('\x00')] = m.param_value
+
+
+def imu_biriktir(ax_mg, ay_mg, az_mg):
+    """Govde eksenindeki ivmeyi (milli-g) son ATTITUDE acilariyla kuzey/dogu/asagi eksenine cevirip toplar.
+    Asagi bileskeye yercekimi eklenir; boylece duz hover'da uc bilesen de ~0 olur."""
+    if son['roll_rad'] is None:
+        return
+    fx, fy, fz = ax_mg * G / 1000, ay_mg * G / 1000, az_mg * G / 1000
+    cr, sr = math.cos(son['roll_rad']), math.sin(son['roll_rad'])
+    cp, sp = math.cos(son['pitch_rad']), math.sin(son['pitch_rad'])
+    cy, sy = math.cos(son['yaw_rad']), math.sin(son['yaw_rad'])
+    imu_top[0] += cy*cp*fx + (cy*sp*sr - sy*cr)*fy + (cy*sp*cr + sy*sr)*fz
+    imu_top[1] += sy*cp*fx + (sy*sp*sr + cy*cr)*fy + (sy*sp*cr - cy*sr)*fz
+    imu_top[2] += -sp*fx + cp*sr*fy + cp*cr*fz + G
+    imu_top[3] += 1
 
 
 def uzaklik_m(enlem1, boylam1, enlem2, boylam2):
@@ -207,6 +244,9 @@ def satir_yaz(simdi):
         return
     t = simdi - T0
     fark = gps_ekf_fark_m()
+    n = imu_top[3]
+    imu_ort = [round(v / n, 4) for v in imu_top[:3]] if n else [None, None, None]
+    imu_top[:] = [0.0, 0.0, 0.0, 0]
     alanlar = [
         f'{t:.2f}', durum['etiket'], round(durum['glitch_m'], 2), son['armed'], baglanti.flightmode, son['irtifa'],
         son['gps_enlem'], son['gps_boylam'], son['gps_hiz'], son['gps_rota'], son['gps_eph'], son['uydu'], son['fix'],
@@ -215,6 +255,7 @@ def satir_yaz(simdi):
         son['ax'], son['ay'], son['az'], son['roll'], son['pitch'], son['yaw'],
         son['ekf_bayrak'], son['ekf_hiz_var'], son['ekf_konum_var'], fark,
         son['gercek_enlem'], son['gercek_boylam'], gercek_sapma_m(),
+        imu_ort[0], imu_ort[1], imu_ort[2], n,
     ]
     dosya.write(','.join('' if a is None else str(a) for a in alanlar) + '\n')
     dosya.flush()
@@ -326,6 +367,22 @@ def spoof_uygula(etiket, tur, deger, sure):
         glitch_ayarla(deger)                 # SITL onaylayinca etiket degisir
         durum['etiket'] = etiket
         bekle(sure)
+    elif tur == 'tutarli':                   # GPS hizi + konumu birlikte: SITL kaymayi kendisi biriktirir
+        param_ayarla('SIM_GPS1_GLTV_X', deger)
+        durum['etiket'] = etiket
+        bas = time.monotonic()
+        while time.monotonic() - bas < sure:
+            durum['glitch_m'] = deger * (time.monotonic() - bas)   # sadece ekrana/CSV'ye: tahmini kayma
+            bekle(YAVAS_ADIM_SN)
+        durum['glitch_m'] = deger * sure
+        olay(f"SPOOF SURESI BITTI: {etiket} (son kayma ~{durum['glitch_m']:.1f} m)")
+        param_ayarla('SIM_GPS1_GLTV_X', 0.0)  # sifirlaninca biriken kayma silinir: bu da ters yonde sicrama
+        durum['glitch_m'] = 0.0
+        durum['etiket'] = 'toparlanma'
+        bekle(TOPARLANMA_SN)
+        durum['etiket'] = 'normal'
+        olay(f'TOPARLANMA BITTI: {etiket}')
+        return
     else:                                    # yavas: her YAVAS_ADIM_SN'de biraz daha kaydir
         durum['etiket'] = etiket
         bas = time.monotonic()
@@ -342,7 +399,15 @@ def spoof_uygula(etiket, tur, deger, sure):
 
 
 def ucus(plan, gurultu):
-    for ad, v in TEMIZLIK:                   # onceki denemeden kalan kayma ve gurultu olmasin
+    temizlik[:] = list(TEMIZLIK)
+    if any(s[1] == 'tutarli' for s in plan):
+        try:
+            param_ayarla('SIM_GPS1_GLTV_X', 0.0)
+        except Hata:
+            raise Hata("SIM_GPS1_GLTV_X parametresi yok: ArduPilot surumu eski (6 Ekim 2026 oncesi). "
+                       "'tutarli' senaryolar icin ArduPilot'u guncelleyip yeniden derle.")
+        temizlik.extend(GLTV)
+    for ad, v in temizlik:                   # onceki denemeden kalan kayma ve gurultu olmasin
         param_ayarla(ad, v)
     if gurultu:
         for ad, v in GURULTU:
@@ -370,7 +435,7 @@ def ucus(plan, gurultu):
 def guvenli_son():
     durum['havada'] = False
     try:
-        for ad, v in TEMIZLIK:
+        for ad, v in (temizlik or TEMIZLIK):
             try:
                 param_ayarla(ad, v)
             except Hata as e:
@@ -397,8 +462,8 @@ def main(argv=None):
     gurultu = 'gurultu' in ekstra
     secimler = [a for a in ekstra if a != 'gurultu']
     secim = secimler[0] if secimler else 'hepsi'
-    if secim not in ('ani', 'yavas', 'hepsi'):
-        print("secim 'ani', 'yavas' ya da 'hepsi' olmali")
+    if secim not in ('ani', 'yavas', 'tutarli', 'hepsi'):
+        print("secim 'ani', 'yavas', 'tutarli' ya da 'hepsi' olmali")
         return 2
     if gurultu:
         ad = ad + '_gurultu'

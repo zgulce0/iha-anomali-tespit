@@ -1,0 +1,42 @@
+zaman_sn,olay
+0.0,plan: spoof_ani_2m spoof_ani_5m spoof_ani_10m spoof_ani_25m
+0.0,param SIM_GPS1_GLTCH_X = 0.0
+0.0,param SIM_GPS1_GLTCH_Y = 0.0
+0.0,param SIM_GPS1_HNSE = 0.0
+0.0,param SIM_GPS1_VERR_X = 0.0
+0.0,param SIM_GPS1_VERR_Y = 0.0
+0.0,param DISARM_DELAY = 60
+0.8,mesaj hizlari istendi: 24:10Hz 33:10Hz 32:10Hz 27:10Hz 30:10Hz 193:5Hz 164:10Hz
+0.9,mod GUIDED
+1.0,ARM tamam
+1.0,kalkis komutu; hedef 10 m
+9.3,hedef irtifaya ulasildi (9.09 m)
+9.3,kararlasma bekleniyor (10 sn)
+19.3,NORMAL ucus basladi (40 sn)
+59.3,SPOOF BASLIYOR: spoof_ani_2m
+59.3,param SIM_GPS1_GLTCH_X = 1.796622349982034e-05
+89.4,SPOOF SURESI BITTI: spoof_ani_2m (son kayma 2.0 m)
+89.4,param SIM_GPS1_GLTCH_X = 0.0
+129.4,TOPARLANMA BITTI: spoof_ani_2m
+129.4,SPOOF BASLIYOR: spoof_ani_5m
+129.4,param SIM_GPS1_GLTCH_X = 4.4915558749550845e-05
+159.4,SPOOF SURESI BITTI: spoof_ani_5m (son kayma 5.0 m)
+159.4,param SIM_GPS1_GLTCH_X = 0.0
+199.5,TOPARLANMA BITTI: spoof_ani_5m
+199.5,SPOOF BASLIYOR: spoof_ani_10m
+199.5,param SIM_GPS1_GLTCH_X = 8.983111749910169e-05
+229.5,SPOOF SURESI BITTI: spoof_ani_10m (son kayma 10.0 m)
+229.5,param SIM_GPS1_GLTCH_X = 0.0
+269.5,TOPARLANMA BITTI: spoof_ani_10m
+269.5,SPOOF BASLIYOR: spoof_ani_25m
+269.5,param SIM_GPS1_GLTCH_X = 0.00022457779374775424
+299.5,SPOOF SURESI BITTI: spoof_ani_25m (son kayma 25.0 m)
+299.5,param SIM_GPS1_GLTCH_X = 0.0
+339.5,TOPARLANMA BITTI: spoof_ani_25m
+339.6,mod LAND
+363.0,inis tamam; disarm
+363.0,param SIM_GPS1_GLTCH_X = 0.0
+363.0,param SIM_GPS1_GLTCH_Y = 0.0
+363.0,param SIM_GPS1_HNSE = 0.0
+363.1,param SIM_GPS1_VERR_X = 0.0
+363.1,param SIM_GPS1_VERR_Y = 0.0

@@ -1,0 +1,50 @@
+zaman_sn,olay
+0.0,GURULTU ACIK | plan: spoof_yavas_0.05ms spoof_yavas_0.1ms spoof_yavas_0.2ms spoof_yavas_0.5ms spoof_yavas_1ms
+0.0,param SIM_GPS1_GLTCH_X = 0.0
+0.0,param SIM_GPS1_GLTCH_Y = 0.0
+0.0,param SIM_GPS1_HNSE = 0.0
+0.0,param SIM_GPS1_VERR_X = 0.0
+0.0,param SIM_GPS1_VERR_Y = 0.0
+0.0,param SIM_GPS1_HNSE = 0.5
+0.0,param SIM_GPS1_VERR_X = 0.1
+0.0,param SIM_GPS1_VERR_Y = 0.1
+0.0,param DISARM_DELAY = 60
+0.8,mesaj hizlari istendi: 24:10Hz 33:10Hz 32:10Hz 27:10Hz 30:10Hz 193:5Hz 164:10Hz
+0.8,mod GUIDED
+1.0,ARM tamam
+1.0,kalkis komutu; hedef 10 m
+9.3,hedef irtifaya ulasildi (9.22 m)
+9.3,kararlasma bekleniyor (10 sn)
+19.3,NORMAL ucus basladi (40 sn)
+59.3,SPOOF BASLIYOR: spoof_yavas_0.05ms
+179.8,param SIM_GPS1_GLTCH_X = 5.389867049946102e-05
+179.8,SPOOF SURESI BITTI: spoof_yavas_0.05ms (son kayma 6.0 m)
+179.8,param SIM_GPS1_GLTCH_X = 0.0
+219.8,TOPARLANMA BITTI: spoof_yavas_0.05ms
+219.8,SPOOF BASLIYOR: spoof_yavas_0.1ms
+309.9,param SIM_GPS1_GLTCH_X = 8.084800574919152e-05
+309.9,SPOOF SURESI BITTI: spoof_yavas_0.1ms (son kayma 9.0 m)
+309.9,param SIM_GPS1_GLTCH_X = 0.0
+349.9,TOPARLANMA BITTI: spoof_yavas_0.1ms
+349.9,SPOOF BASLIYOR: spoof_yavas_0.2ms
+410.4,param SIM_GPS1_GLTCH_X = 0.00010779734099892204
+410.4,SPOOF SURESI BITTI: spoof_yavas_0.2ms (son kayma 12.0 m)
+410.4,param SIM_GPS1_GLTCH_X = 0.0
+450.5,TOPARLANMA BITTI: spoof_yavas_0.2ms
+450.5,SPOOF BASLIYOR: spoof_yavas_0.5ms
+491.0,param SIM_GPS1_GLTCH_X = 0.00017966223499820338
+491.0,SPOOF SURESI BITTI: spoof_yavas_0.5ms (son kayma 20.0 m)
+491.0,param SIM_GPS1_GLTCH_X = 0.0
+531.0,TOPARLANMA BITTI: spoof_yavas_0.5ms
+531.0,SPOOF BASLIYOR: spoof_yavas_1ms
+561.2,param SIM_GPS1_GLTCH_X = 0.0002694933524973051
+561.2,SPOOF SURESI BITTI: spoof_yavas_1ms (son kayma 30.0 m)
+561.2,param SIM_GPS1_GLTCH_X = 0.0
+601.2,TOPARLANMA BITTI: spoof_yavas_1ms
+601.2,mod LAND
+625.1,inis tamam; disarm
+625.1,param SIM_GPS1_GLTCH_X = 0.0
+625.1,param SIM_GPS1_GLTCH_Y = 0.0
+625.1,param SIM_GPS1_HNSE = 0.0
+625.1,param SIM_GPS1_VERR_X = 0.0
+625.1,param SIM_GPS1_VERR_Y = 0.0

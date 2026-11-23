@@ -5,7 +5,9 @@ Durum x = [kuzey, dogu, v_kuzey, v_dogu] (metre, m/s).
   Duzeltme : once GPS hizi, sonra GPS konumu
 GPS konum yeniligi  nu = z_gps - H x,  S = H P H' + R,  NIS = nu' S^-1 nu  (2 serbestlik derecesi).
 
-Iki test:
+Uc test:
+  0) Hiz testi   : GPS HIZ yeniligi icin NIS_v > 9.21. GPS hizi bir anda degisip IMU bunu
+                   gormezse (ivme yok) yakalar: konum+hizi birlikte kaydiran saldirinin baslangici.
   1) Anlik test  : NIS > 9.21 (chi-kare, 2 sd, %99), art arda 3 olcum -> ani sicrama
   2) Yavas test  : son 12.6 sn'deki yeniliklerin ORTALAMASI m (metre). Gurultu yon degistirdigi
                    icin ortalamada sonuyor; kayma hep ayni yone ittigi icin ortalamada birikiyor.
@@ -37,15 +39,19 @@ class SpoofDedektor:
         """t: sn, zp: GPS konum (kuzey, dogu) m, zv: GPS hiz (kuzey, dogu) m/s, a_ne: IMU ivmesi (kuzey, dogu) m/s2"""
         if self.x is None:
             self.t = t; self._baslat(zp, zv)
-            return dict(nis=0.0, m=0.0, g=0.0, anlik=False, yavas=False, alarm=False, sifirlandi=True)
+            return dict(nis=0.0, nis_v=0.0, m=0.0, g=0.0, anlik=False, yavas=False, hiz=False,
+                        alarm=False, sifirlandi=True)
         dt = max(1e-3, t - self.t); self.t = t
         F = np.eye(4); F[0, 2] = F[1, 3] = dt
         B = np.array([[dt*dt/2, 0], [0, dt*dt/2], [dt, 0], [0, dt]])
         self.x = F @ self.x + B @ a_ne
         self.P = F @ self.P @ F.T + B @ B.T * self.sig_a**2
         # GPS hiz guncellemesi
+        nu_v = zv - self.Hv @ self.x
         S = self.Hv @ self.P @ self.Hv.T + self.R_v; K = self.P @ self.Hv.T @ np.linalg.inv(S)
-        self.x = self.x + K @ (zv - self.Hv @ self.x); self.P = (np.eye(4) - K @ self.Hv) @ self.P
+        nis_v = float(nu_v @ np.linalg.solve(S, nu_v))
+        self.x = self.x + K @ nu_v; self.P = (np.eye(4) - K @ self.Hv) @ self.P
+        hiz = nis_v > CHI2_99_2SD
         # GPS konum yeniligi ve NIS
         nu = zp - self.Hp @ self.x; S = self.Hp @ self.P @ self.Hp.T + self.R_p
         nis = float(nu @ np.linalg.solve(S, nu))
@@ -59,12 +65,12 @@ class SpoofDedektor:
         m = float(np.hypot(*np.mean(self.pencere, axis=0))) if len(self.pencere) == self.pencere.maxlen else 0.0
         self.g = min(2 * self.h, max(0.0, self.g + m - self.k))
         yavas = self.g > self.h
-        if anlik or yavas:
+        if anlik or yavas or hiz:
             self.kilit_bitis = t + self.kilit_sn
         sifirlandi = False
         if self.asim >= self.sifirla_n:          # 1 sn surekli buyuk sicrama -> yeni konuma yeniden basla
             self._baslat(zp, zv); sifirlandi = True
-        return dict(nis=nis, m=m, g=self.g, anlik=anlik, yavas=yavas,
+        return dict(nis=nis, nis_v=nis_v, m=m, g=self.g, anlik=anlik, yavas=yavas, hiz=hiz,
                     alarm=t <= self.kilit_bitis, sifirlandi=sifirlandi)
 
 def yerel(d):
@@ -79,13 +85,20 @@ def yerel(d):
     cr, sr, cp, sp, cy, sy = np.cos(r), np.sin(r), np.cos(p), np.sin(p), np.cos(y), np.sin(y)
     d['an'] = cy*cp*f[:, 0] + (cy*sp*sr - sy*cr)*f[:, 1] + (cy*sp*cr + sy*sr)*f[:, 2]
     d['ae'] = sy*cp*f[:, 0] + (sy*sp*sr + cy*cr)*f[:, 1] + (sy*sp*cr - cy*sr)*f[:, 2]
+    d.attrs['imu'] = 'anlik ornek (5 Hz)'
+    # Yeni kayitlarda (spoof_deney.py, 50 Hz IMU) satir arasi ortalama ivme var: varsa onu kullan
+    if 'imu_an_ort' in d.columns and d.imu_an_ort.notna().mean() > 0.95:
+        d['an'] = d.imu_an_ort.ffill().fillna(0.0); d['ae'] = d.imu_ae_ort.ffill().fillna(0.0)
+        d.attrs['imu'] = 'satir arasi ortalama (50 Hz)'
     return d
 
 def calistir(d, **kw):
     det = SpoofDedektor(**kw); cikti = []
     for r in d.itertuples():
         cikti.append(det.adim(r.zaman_sn, np.array([r.gps_n, r.gps_e]), np.array([r.gvn, r.gve]), np.array([r.an, r.ae])))
-    return pd.concat([d, pd.DataFrame(cikti, index=d.index)], axis=1)
+    sonuc = pd.concat([d, pd.DataFrame(cikti, index=d.index)], axis=1)
+    sonuc.attrs = dict(d.attrs)
+    return sonuc
 
 def yukle(yol, **kw):
     d = pd.read_csv(yol)
@@ -98,12 +111,13 @@ def bolge(d):
     """temiz = normal + hazirlik (havada) + toparlanmanin son 10 sn'si (arac gercek konumuna donmus)."""
     d['bas'] = (d.etiket != d.etiket.shift()).cumsum()
     d['gecen'] = d.zaman_sn - d.groupby('bas').zaman_sn.transform('min')
+    d.attrs = dict(d.attrs)
     d['temiz'] = d.etiket.isin(['normal', 'hazirlik']) | ((d.etiket == 'toparlanma') & (d.gecen > 30))
     return d
 
 def rapor(ad, d):
     ya, nt = int(d[d.temiz].alarm.sum()), int(d.temiz.sum())
-    print(f'\n{ad}\n  temiz satirlarda yanlis alarm: {ya}/{nt}')
+    print(f'\n{ad}   [IMU: {d.attrs.get("imu", "?")}]\n  temiz satirlarda yanlis alarm: {ya}/{nt}')
     print(f'  {"senaryo":20s} {"tespit":>8s} {"kapsama":>8s} {"ilk tetik":>10s} {"o andaki gercek sapma":>22s}')
     for et, grp in d[d.etiket.str.startswith('spoof')].groupby('etiket', sort=False):
         hit = grp[grp.alarm]
@@ -111,7 +125,7 @@ def rapor(ad, d):
             print(f'  {et:20s} {"YOK":>8s}'); continue
         h = hit.iloc[0]
         print(f'  {et:20s} {h.zaman_sn - grp.zaman_sn.iloc[0]:7.1f}s {grp.alarm.mean()*100:7.0f}% '
-              f'{"anlik" if h.anlik else "yavas":>10s} {h.gercek_sapma_m:20.2f} m')
+              f'{"hiz" if h.hiz else ("anlik" if h.anlik else "yavas"):>10s} {h.gercek_sapma_m:20.2f} m')
 
 if __name__ == '__main__':
     imusuz = '--imusuz' in sys.argv          # IMU'nun katkisini olcmek icin: ivmeyi sifirla
