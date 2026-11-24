@@ -4,7 +4,7 @@ Dedektorun kendisi exporter/spoof_tespit.py icinde (canli sistemle AYNI kod). Bu
 CSV'yi okur, dedektoru satir satir calistirir ve her senaryo icin tespit suresini yazar.
 
 Kullanim (proje kokunden):
-    venv/bin/python analiz/spoof_ekf.py veri/spoof_ucuncu_*.csv [--imusuz]
+    venv/bin/python analiz/spoof_analiz.py veri/spoof_ucuncu_*.csv [--imusuz]
         --imusuz : IMU ivmesini sifirla (IMU'nun katkisini olcmek icin)
 """
 import os

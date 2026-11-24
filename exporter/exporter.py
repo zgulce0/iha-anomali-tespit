@@ -25,8 +25,8 @@ baglanti_durumu = Gauge('drone_connected', 'Bağlantı durumu (1=bağlı, 0=değ
 spoof_alarm = Gauge('drone_gps_spoofing_alarm', 'GPS spoofing alarmı (1=spoofing şüphesi)', ['drone_id'])
 spoof_aktif = Gauge('drone_gps_spoofing_active', 'Spoofing izlemesi çalışıyor mu (1=evet, 0=kapı kapalı)', ['drone_id'])
 spoof_nis = Gauge('drone_gps_spoof_nis', 'GPS konum yeniliği NIS (chi-kare, sınır 9.21)', ['drone_id'])
-spoof_nis_v = Gauge('drone_gps_spoof_nis_vel', 'GPS hız yeniliği NIS (chi-kare, sınır 9.21)', ['drone_id'])
-spoof_kayma = Gauge('drone_gps_spoof_drift_m', 'Son 12.6 sn konum yeniliği ortalaması (m, sınır 0.18)', ['drone_id'])
+spoof_nis_v = Gauge('drone_gps_spoof_nis_vel', 'GPS hız yeniliği NIS (chi-kare, sınır 13.82, art arda 2 ölçüm)', ['drone_id'])
+spoof_kayma = Gauge('drone_gps_spoof_drift_m', 'Kestirilen GPS sapması (m, sınır ~7.3)', ['drone_id'])
 
 # Anomali modeli (Mahalanobis): normal uçuştan ne kadar uzak?
 anomali_skor = Gauge('drone_anomaly_score', 'Modelin skoru: mesafe / alarm eşiği (1.0 = sınır, üstü anomali)', ['drone_id'])
@@ -79,7 +79,7 @@ def spoof_yaz(sonuc, alarm):
     nan = float('nan')
     spoof_nis.labels(drone_id=DRONE_ID).set(nan if sonuc is None else sonuc['nis'])
     spoof_nis_v.labels(drone_id=DRONE_ID).set(nan if sonuc is None else sonuc['nis_v'])
-    spoof_kayma.labels(drone_id=DRONE_ID).set(nan if sonuc is None else sonuc['m'])
+    spoof_kayma.labels(drone_id=DRONE_ID).set(nan if sonuc is None else sonuc['sapma'])
 
 
 def anomali_yaz(skor, alarm, tur=None):
@@ -96,8 +96,21 @@ def spoof_ozet():
     s_ = spoof_durum['sonuc']
     if not spoof.aktif or s_ is None:
         return 'spoof: izleme kapalı'
-    return (f"spoof NIS {s_['nis']:.1f} hızNIS {s_['nis_v']:.1f} kayma {s_['m']:.2f}"
+    return (f"spoof NIS {s_['nis']:.1f} hızNIS {s_['nis_v']:.1f} sapma {s_['sapma']:.1f} m"
             + (" ALARM" if spoof_durum['alarm'] else ""))
+
+
+# Spoofing dedektörü ivmeölçeri (RAW_IMU) ve tutum açılarını (ATTITUDE) sık ister: iki GPS ölçümü
+# arasındaki ivmenin ortalaması alınır. Seyrek gelirse ani bir sarsıntı yanlış ölçülür.
+# Not: MAVProxy'de "set streamrate -1" yazılmazsa MAVProxy bu hızları kendi değeriyle ezer.
+ISTENEN_HIZLAR = {27: 50, 30: 50, 24: 10}    # RAW_IMU, ATTITUDE: 50 Hz; GPS_RAW_INT: 10 Hz
+
+
+def mesaj_hizlarini_iste(baglanti):
+    for msg_id, hz in ISTENEN_HIZLAR.items():
+        baglanti.mav.command_long_send(baglanti.target_system, baglanti.target_component,
+                                       mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0,
+                                       msg_id, int(1e6 / hz), 0, 0, 0, 0, 0)
 
 
 def main():
@@ -109,6 +122,9 @@ def main():
     baglanti = mavutil.mavlink_connection('udpin:127.0.0.1:14551')
     baglanti.wait_heartbeat()
     print(f"Bağlantı kuruldu! Sistem ID: {baglanti.target_system}")
+    mesaj_hizlarini_iste(baglanti)
+    son_istek = time.monotonic()
+    seyrek_sayac = 0
     baglanti_durumu.labels(drone_id=DRONE_ID).set(1)
 
     print("Veri okunuyor ve Prometheus metriklerine yazılıyor... (Ctrl+C ile durdur)")
@@ -206,7 +222,16 @@ def main():
             t_gps = mesaj.time_usec / 1e6 if mesaj.time_usec else simdi
             kapi = (son['armed'] == 1 and son['irtifa'] is not None
                     and son['irtifa'] >= SpoofIzleyici.MIN_IRTIFA_M and saglikli and not jamming_aktif)
-            sonuc = spoof.gps(t_gps, mesaj.lat, mesaj.lon, mesaj.vel, mesaj.cog, kapi)
+            # GPS_RAW_INT ve RAW_IMU zaman damgalari ayni saatten (aracin acilistan beri gecen sure); ivmeyi
+            # GPS ile eslemek icin bu kullanilir.
+            sonuc = spoof.gps(t_gps, mesaj.lat, mesaj.lon, mesaj.vel, mesaj.cog, kapi,
+                              saat=t_gps if mesaj.time_usec else None)
+            if sonuc is not None:
+                seyrek_sayac = seyrek_sayac + 1 if spoof.imu_sayisi < spoof.MIN_IMU else 0
+                if seyrek_sayac == 25:      # ~5 sn boyunca seyrek
+                    print(f"{datetime.now():%H:%M:%S} UYARI: ivmeölçer verisi seyrek geliyor "
+                          f"(GPS ölçümü başına {spoof.imu_sayisi}). MAVProxy'de 'set streamrate -1' yazıldı mı? "
+                          "Spoofing hız testi bu sürede daha az hassas.", flush=True)
             if sonuc is not None:
                 spoof_durum['sonuc'] = sonuc
             spoof_alarm_simdi = spoof.alarm(t_gps)
@@ -214,7 +239,7 @@ def main():
             if spoof_alarm_simdi and not spoof_durum['alarm']:
                 s_ = spoof_durum['sonuc'] or {}
                 print(f"{datetime.now():%H:%M:%S} GPS SPOOFING ALARMI BAŞLADI | test {s_.get('tetik')} | "
-                      f"NIS {s_.get('nis', 0):.1f} | hız NIS {s_.get('nis_v', 0):.1f} | kayma {s_.get('m', 0):.2f} m", flush=True)
+                      f"NIS {s_.get('nis', 0):.1f} | hız NIS {s_.get('nis_v', 0):.1f} | GPS sapması {s_.get('sapma', 0):.1f} m", flush=True)
             elif spoof_durum['alarm'] and not spoof_alarm_simdi:
                 print(f"{datetime.now():%H:%M:%S} GPS spoofing alarmı bitti", flush=True)
             spoof_durum['alarm'] = spoof_alarm_simdi
@@ -223,9 +248,13 @@ def main():
             spoof.attitude(mesaj.roll, mesaj.pitch, mesaj.yaw)
 
         elif tip == 'RAW_IMU':
-            spoof.raw_imu(mesaj.xacc, mesaj.yacc, mesaj.zacc)
+            spoof.raw_imu(mesaj.xacc, mesaj.yacc, mesaj.zacc,
+                          saat=mesaj.time_usec / 1e6 if mesaj.time_usec else None)
 
         an = time.monotonic()
+        if an - son_istek >= 30:            # simülatör yeniden başlarsa hızlar sıfırlanır: ara ara tekrar iste
+            mesaj_hizlarini_iste(baglanti)
+            son_istek = an
 
         # Model kararı: saniyede bir, defterin son haline bakarak
         if dedektor is not None and an >= sonraki_karar:
