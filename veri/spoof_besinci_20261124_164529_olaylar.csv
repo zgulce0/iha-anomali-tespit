@@ -1,0 +1,49 @@
+zaman_sn,olay
+0.0,plan: spoof_tutarli_0.1ms spoof_tutarli_0.2ms spoof_tutarli_0.5ms spoof_tutarli_1ms
+0.0,param SIM_GPS1_GLTV_X = 0.0
+0.0,param SIM_GPS1_GLTCH_X = 0.0
+0.0,param SIM_GPS1_GLTCH_Y = 0.0
+0.0,param SIM_GPS1_HNSE = 0.0
+0.0,param SIM_GPS1_VERR_X = 0.0
+0.0,param SIM_GPS1_VERR_Y = 0.0
+0.0,param SIM_GPS1_GLTV_X = 0.0
+0.0,param SIM_GPS1_GLTV_Y = 0.0
+0.0,param SIM_GPS1_GLTV_Z = 0.0
+0.0,param DISARM_DELAY = 60
+0.8,mesaj hizlari istendi: 24:10Hz 33:10Hz 32:10Hz 27:50Hz 30:50Hz 193:5Hz 164:10Hz
+0.9,mod GUIDED
+1.0,ARM tamam
+1.0,kalkis komutu; hedef 10 m
+9.2,hedef irtifaya ulasildi (9.02 m)
+9.2,kararlasma bekleniyor (10 sn)
+19.3,NORMAL ucus basladi (40 sn)
+59.3,SPOOF BASLIYOR: spoof_tutarli_0.1ms
+59.3,param SIM_GPS1_GLTV_X = 0.1
+149.5,SPOOF SURESI BITTI: spoof_tutarli_0.1ms (son kayma ~9.0 m)
+149.5,param SIM_GPS1_GLTV_X = 0.0
+189.5,TOPARLANMA BITTI: spoof_tutarli_0.1ms
+189.5,SPOOF BASLIYOR: spoof_tutarli_0.2ms
+189.5,param SIM_GPS1_GLTV_X = 0.2
+250.0,SPOOF SURESI BITTI: spoof_tutarli_0.2ms (son kayma ~12.0 m)
+250.0,param SIM_GPS1_GLTV_X = 0.0
+290.0,TOPARLANMA BITTI: spoof_tutarli_0.2ms
+290.0,SPOOF BASLIYOR: spoof_tutarli_0.5ms
+290.0,param SIM_GPS1_GLTV_X = 0.5
+330.4,SPOOF SURESI BITTI: spoof_tutarli_0.5ms (son kayma ~20.0 m)
+330.4,param SIM_GPS1_GLTV_X = 0.0
+370.4,TOPARLANMA BITTI: spoof_tutarli_0.5ms
+370.4,SPOOF BASLIYOR: spoof_tutarli_1ms
+370.4,param SIM_GPS1_GLTV_X = 1.0
+400.7,SPOOF SURESI BITTI: spoof_tutarli_1ms (son kayma ~30.0 m)
+400.7,param SIM_GPS1_GLTV_X = 0.0
+440.7,TOPARLANMA BITTI: spoof_tutarli_1ms
+440.7,mod LAND
+464.1,inis tamam; disarm
+464.1,param SIM_GPS1_GLTCH_X = 0.0
+464.1,param SIM_GPS1_GLTCH_Y = 0.0
+464.1,param SIM_GPS1_HNSE = 0.0
+464.1,param SIM_GPS1_VERR_X = 0.0
+464.1,param SIM_GPS1_VERR_Y = 0.0
+464.1,param SIM_GPS1_GLTV_X = 0.0
+464.1,param SIM_GPS1_GLTV_Y = 0.0
+464.1,param SIM_GPS1_GLTV_Z = 0.0

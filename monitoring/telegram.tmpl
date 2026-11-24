@@ -1,0 +1,10 @@
+{{/*
+  Telegram mesaj sablonu. alertmanager.yml icindeki telegram_configs bunu
+  message: '{{ template "iha.telegram" . }}' satiriyla kullanir.
+  Saatler Turkiye saatidir (konteyner UTC calisir, +3 saat eklenir).
+*/}}
+{{ define "iha.telegram" }}{{ range .Alerts }}{{ if eq .Status "firing" }}🔴 <b>ALARM</b>{{ else }}✅ <b>BİTTİ</b>{{ end }} · {{ .Annotations.summary }}
+{{ if eq .Status "firing" }}{{ .Annotations.description }}
+{{ end }}🕒 Başladı: {{ (.StartsAt.Add 10800000000000).Format "15:04:05" }}{{ if eq .Status "resolved" }} · Bitti: {{ (.EndsAt.Add 10800000000000).Format "15:04:05" }}{{ end }}
+🖥 Operatör ekranı: http://localhost:8088
+{{ end }}{{ end }}

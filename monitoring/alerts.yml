@@ -30,3 +30,12 @@ groups:
         annotations:
           summary: '{{ reReplaceAll "motor" "Motor " $labels.tur }} arızası şüphesi ({{ $labels.drone_id }})'
           description: '{{ reReplaceAll "motor" "Motor " $labels.tur }}, diğer motorlardan ayrıldı. Model skoru {{ $value | printf "%.1f" }} (sınır 1.0).'
+      # GPS spoofing: exporter'daki kendi Kalman filtremiz (exporter/spoof_tespit.py). Alarm açılınca 30 sn açık kalır.
+      - alert: GPSSpoofing
+        expr: drone_gps_spoofing_alarm == 1
+        for: 5s
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPS spoofing şüphesi ({{ $labels.drone_id }})"
+          description: "GPS konumu/hızı ile ivmeölçer çelişiyor. Araç sandığı yerde olmayabilir; konuma güvenme."

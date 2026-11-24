@@ -17,6 +17,7 @@
 }
 body[data-durum="normal"]{--ana:var(--yesil); --ana-yazi:#04140E}
 body[data-durum="alarm"],body[data-durum="jamming"]{--ana:var(--kirmizi); --ana-yazi:#1B0907}
+body[data-durum="dikkat"]{--ana:var(--kehribar); --ana-yazi:#1B1203}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{color-scheme:dark}
@@ -69,6 +70,10 @@ body[data-durum="alarm"] .ikon .zemin,body[data-durum="jamming"] .ikon .zemin{fi
 .ikon .glif{display:none;fill:none;stroke-linecap:round;stroke-linejoin:round}
 body[data-durum="normal"] .ikon .g-tamam{display:block;stroke:var(--yesil);stroke-width:5.5}
 body[data-durum="alarm"] .ikon .g-uyari,body[data-durum="jamming"] .ikon .g-uyari{display:block;stroke:var(--kirmizi);stroke-width:3.4}
+body[data-durum="dikkat"] .ikon .zemin{fill:#2B2110;stroke:var(--kehribar)}
+body[data-durum="dikkat"] .ikon .g-uyari{display:block;stroke:var(--kehribar);stroke-width:3.4}
+body[data-durum="dikkat"] .durum-kart{border-color:#6B4F17}
+.ek.dikkat{color:var(--kehribar)}
 body[data-durum="izlenemiyor"] .ikon .g-dur,body[data-durum="baglanti_yok"] .ikon .g-dur{display:block;stroke:var(--gri);stroke-width:5}
 .ikon .dalga{display:none;fill:none;stroke:var(--kirmizi);stroke-width:2;transform-box:fill-box;transform-origin:center}
 body[data-durum="alarm"] .ikon .dalga,body[data-durum="jamming"] .ikon .dalga{display:block;animation:puls 1.6s ease-out infinite}
@@ -207,6 +212,7 @@ svg text{font-family:var(--sans)}
 .cizelge .hat{stroke:var(--cizgi2);stroke-width:3;stroke-linecap:round}
 .cizelge .blok{fill:var(--kirmizi)}
 .cizelge .blok.gps{fill:var(--kehribar)}
+.cizelge .blok.dikkat{fill:var(--kehribar);opacity:.75}
 .cizelge .et{fill:var(--kirmizi-yazi);font-size:12px;font-weight:600}
 .cizelge .ek{fill:var(--yazi2);font-size:12px;font-weight:400}
 .cizelge .simdi{fill:var(--cyan);stroke:var(--kart);stroke-width:2}
@@ -664,7 +670,9 @@ function caprazCiz(d){
       metin = "İki ayrı kural aynı sonucu verdi: " + (a.tur === "motor" ? "Motor " + a.motor : "Batarya") + ".";
     }
   } else if (d.durum === "jamming"){
-    metin = "GPS jamming kuralı ayrı çalışır; model skoru bu alarmı değerlendirmez.";
+    metin = (d.jamming && d.jamming.tur === "spoofing")
+      ? "GPS spoofing tespiti ayrı çalışır (kendi Kalman filtremiz); model skoru bu alarmı değerlendirmez."
+      : "GPS jamming kuralı ayrı çalışır; model skoru bu alarmı değerlendirmez.";
   }
   c.className = sinif;
   htmlYaz(c, ikon + '<div class="ic"><span class="b">' + baslik + '</span><span class="t">' + esc(metin) + '</span></div>');
@@ -689,10 +697,10 @@ function zamanCiz(d){
   const sonX = SIRA_Y.map(() => -1e9);
   (u.segmentler || []).forEach((s) => {
     const bitis = s.bit_sn === null ? u.sure_sn : s.bit_sn;
-    const xa = X(s.bas_sn), xb = X(bitis), w = Math.max(xb - xa, 6), gps = s.tip === "jamming";
+    const xa = X(s.bas_sn), xb = X(bitis), w = Math.max(xb - xa, 6), gps = s.tip === "jamming" || s.tip === "spoofing";
     const sure = Math.round(bitis - s.bas_sn);
     const txt = s.etiket + " · " + (s.devam ? "devam ediyor" : sure + " sn");
-    g += '<rect class="blok' + (gps ? " gps" : "") + '" x="' + xa.toFixed(1) + '" y="' + (gps ? 94 : 64) + '" width="' + w.toFixed(1) + '" height="' + (gps ? 10 : 24) + '" rx="' + (gps ? 3 : 5) + '"><title>' + esc(txt) + '</title></rect>';
+    g += '<rect class="blok' + (gps ? " gps" : s.tip === "gps_bagli" ? " dikkat" : "") + '" x="' + xa.toFixed(1) + '" y="' + (gps ? 94 : 64) + '" width="' + w.toFixed(1) + '" height="' + (gps ? 10 : 24) + '" rx="' + (gps ? 3 : 5) + '"><title>' + esc(txt) + '</title></rect>';
     if (gps) return;
     const uz = txt.length * 7;
     let mer = s.devam ? xa + w - uz / 2 : xa + w / 2;
@@ -724,7 +732,7 @@ function kahramanCiz(d){
   const k = d.durum, a = d.aciklama, u = d.ucus;
   document.body.dataset.durum = k;
   $("serit").hidden = !(k === "alarm" || k === "jamming");
-  let etiket = "DURUM", alt = "", ek = "", cipler = "", payGoster = false;
+  let etiket = "DURUM", alt = "", ek = "", ekDikkat = false, cipler = "", payGoster = false;
   const skorChip = "";   /* model skoru yan taraftaki göstergede zaten var; burada tekrar edilmez */
   if (k === "alarm" && a){
     etiket = "ALARM";
@@ -753,7 +761,13 @@ function kahramanCiz(d){
     if (d.jamming) ek = "Ayrıca: " + d.jamming.baslik + ". " + d.jamming.kisa + ".";
   } else if (k === "jamming"){
     etiket = "ALARM · GPS";
-    cipler = chipHtml("UYDU", d.uydu === null || d.uydu === undefined ? "—" : String(d.uydu), "k") + chipHtml("FİX TİPİ", d.fix === null || d.fix === undefined ? "—" : String(d.fix), "k") + chipHtml("GEREKEN", "≥ 6 uydu · fix ≥ 3");
+    if (d.jamming && d.jamming.cipler) cipler = d.jamming.cipler.map((c, i) => chipHtml(c[0], c[1], i === 0 ? "k" : "")).join("");
+    else cipler = chipHtml("UYDU", d.uydu === null || d.uydu === undefined ? "—" : String(d.uydu), "k") + chipHtml("FİX TİPİ", d.fix === null || d.fix === undefined ? "—" : String(d.fix), "k") + chipHtml("GEREKEN", "≥ 6 uydu · fix ≥ 3");
+    if (d.dikkat){ ek = "Ayrıca: " + d.dikkat.kisa + " (GPS olayına bağlı, 5 sn'den uzun sürerse arıza alarmı olur)."; ekDikkat = true; }
+  } else if (k === "dikkat"){
+    etiket = "DİKKAT";
+    alt = "GPS olayından hemen sonra";
+    cipler = chipHtml("SÜRE SINIRI", "5 sn") + chipHtml("SONRA", "arıza alarmı");
   } else if (k === "normal"){
     etiket = "İZLENİYOR";
     alt = u && u.son_alarm ? "son alarm " + u.son_alarm.bit + " · " + u.son_alarm.etiket + " " + u.son_alarm.sure_sn + " sn" : (u ? "bu uçuşta alarm yok" : "");
@@ -769,7 +783,7 @@ function kahramanCiz(d){
   metinYaz($("altBilgi"), alt);
   metinYaz($("baslik"), d.baslik || "");
   metinYaz($("cumle"), d.cumle || "");
-  const e = $("ek"); e.hidden = !ek; metinYaz(e, ek);
+  const e = $("ek"); e.hidden = !ek; metinYaz(e, ek); e.classList.toggle("dikkat", ekDikkat);
   $("pay").hidden = !payGoster;
   htmlYaz($("cipler"), cipler);
 
@@ -777,7 +791,7 @@ function kahramanCiz(d){
   let oEt = "NOT", oAna = "", oAlt = "", kul = null, raporKartta = false;
   const o = d.oneri;
   if (k === "alarm" || k === "jamming"){ oEt = "ÖNERİ (BASİT KURAL)"; oAna = o ? o.metin : ""; oAlt = o ? o.alt : ""; if (o && o.kullanim_yuzde !== undefined) kul = o.kullanim_yuzde; }
-  else if (k === "normal"){ oEt = "ÖNERİ"; oAna = o ? o.metin : "Bir şey yapmana gerek yok."; oAlt = o ? o.alt : ""; }
+  else if (k === "normal" || k === "dikkat"){ oEt = "ÖNERİ"; oAna = o ? o.metin : "Bir şey yapmana gerek yok."; oAlt = o ? o.alt : ""; }
   else if (k === "izlenemiyor"){
     if (u && !u.devam && d.sebep === "motorlar kapali"){
       oEt = "UÇUŞ BİTTİ"; oAna = "Olay raporu hazır."; oAlt = u.alarm_adet ? u.alarm_adet + " alarm, toplam " + sureYaz(u.alarm_toplam_sn) + "." : "Bu uçuşta alarm olmadı."; raporKartta = true;
@@ -960,7 +974,7 @@ function sesKontrol(d){
 }
 
 /* ============================== ANA DÖNGÜ ============================== */
-const BASLIK_ONEKI = {alarm: "ALARM · ", jamming: "GPS ALARMI · "};
+const BASLIK_ONEKI = {alarm: "ALARM · ", jamming: "GPS ALARMI · ", dikkat: "DİKKAT · "};
 let sonSaat = null, sonDegisim = Date.now();
 function ciz(d){
   sonD = d;

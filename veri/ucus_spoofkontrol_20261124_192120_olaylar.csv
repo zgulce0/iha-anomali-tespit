@@ -1,0 +1,18 @@
+zaman_sn,olay
+0.0,tohum 1795537280; plan: motor3_0.85 batt_res_0.05 motor3_0.9 motor1_0.9 motor1_0.7 motor3_0.95 motor2_0.85 batt_volt_11.8 motor4_0.85 motor1_0.85 batt_volt_11.5 motor2_0.9 batt_res_0.02 motor4_0.9 batt_volt_12.5 motor4_0.7 batt_res_0.03 batt_volt_12.2 motor2_0.95 motor2_0.7 motor3_0.7 motor1_0.95 motor4_0.95
+0.0,param DISARM_DELAY = 60
+0.0,mod GUIDED
+5.2,ARM olmadi (GPS / pre-arm bekleniyor olabilir); tekrar deneniyor
+10.2,ARM olmadi (GPS / pre-arm bekleniyor olabilir); tekrar deneniyor
+15.4,ARM olmadi (GPS / pre-arm bekleniyor olabilir); tekrar deneniyor
+20.5,ARM olmadi (GPS / pre-arm bekleniyor olabilir); tekrar deneniyor
+25.6,ARM olmadi (GPS / pre-arm bekleniyor olabilir); tekrar deneniyor
+30.7,ARM olmadi (GPS / pre-arm bekleniyor olabilir); tekrar deneniyor
+31.0,ARM tamam
+31.0,kalkis komutu; hedef 10 m
+91.0,HATA: 9 m'ye cikilamadi (irtifa None)
+91.0,LAND komutu gonderildi
+91.0,param SIM_ENGINE_FAIL = 0
+91.0,param SIM_ENGINE_MUL = 0.0
+91.0,param SIM_BATT_VOLTAGE = 12.6
+91.0,param SIM_BATT_RES_OHM = 0.01

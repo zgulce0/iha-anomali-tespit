@@ -165,8 +165,8 @@ function cizelge(u, kw){
   let g = '<line x1="' + X0 + '" y1="62" x2="' + (X0 + W) + '" y2="62" stroke="#CBD5E0" stroke-width="3" stroke-linecap="round"/>';
   const son = SIRA.map(() => -1e9);
   u.alarmlar.forEach((a) => {
-    const bit = a.bit_sn === null ? u.sure_sn : a.bit_sn, xa = X(a.bas_sn), w = Math.max(X(bit) - xa, 6), gps = a.tip === "jamming";
-    g += '<rect x="' + xa.toFixed(1) + '" y="' + (gps ? 80 : 50) + '" width="' + w.toFixed(1) + '" height="' + (gps ? 9 : 24) + '" rx="4" fill="' + (gps ? "#C98A1B" : "#C8342A") + '"><title>' + esc("Alarm " + a.id + ": " + a.etiket) + '</title></rect>';
+    const bit = a.bit_sn === null ? u.sure_sn : a.bit_sn, xa = X(a.bas_sn), w = Math.max(X(bit) - xa, 6), gps = a.tip === "jamming" || a.tip === "spoofing";
+    g += '<rect x="' + xa.toFixed(1) + '" y="' + (gps ? 80 : 50) + '" width="' + w.toFixed(1) + '" height="' + (gps ? 9 : 24) + '" rx="4" fill="' + (gps || a.tip === "gps_bagli" ? "#C98A1B" : "#C8342A") + '"><title>' + esc("Alarm " + a.id + ": " + a.etiket) + '</title></rect>';
     if (gps) return;
     const txt = a.id + " · " + a.etiket, uz = txt.length * 7;
     const mer = sinirla(xa + w / 2, X0 + uz / 2, X0 + W - uz / 2);
@@ -210,7 +210,7 @@ function skorGrafik(u, W0, H0){
   }
   u.alarmlar.forEach((a) => {
     const bit = a.bit_sn === null ? toplam : a.bit_sn, xa = X(a.bas_sn), w = Math.max(X(bit) - xa, 3);
-    g += '<rect x="' + xa.toFixed(1) + '" y="' + T + '" width="' + w.toFixed(1) + '" height="' + (H - T - B) + '" fill="' + (a.tip === "jamming" ? "#C98A1B" : "#C8342A") + '" opacity="0.13"/>';
+    g += '<rect x="' + xa.toFixed(1) + '" y="' + T + '" width="' + w.toFixed(1) + '" height="' + (H - T - B) + '" fill="' + ((a.tip === "jamming" || a.tip === "spoofing" || a.tip === "gps_bagli") ? "#C98A1B" : "#C8342A") + '" opacity="0.13"/>';
     g += '<text x="' + (xa + w / 2).toFixed(1) + '" y="' + (T + 13) + '" text-anchor="middle" font-size="12" font-weight="700" fill="#C8342A">' + a.id + '</text>';
   });
   g += '<line x1="' + L + '" y1="' + Y(1).toFixed(1) + '" x2="' + (W - R) + '" y2="' + Y(1).toFixed(1) + '" stroke="#C8342A" stroke-width="1.5" stroke-dasharray="6 5"/>';
@@ -250,11 +250,14 @@ function imlecKur(gr){
 
 /* ---------- alarm kartları ---------- */
 function alarmKart(a, u){
-  const k = a.kanit || {}, gps = a.tip === "jamming", belirsiz = a.tip === "belirsiz";
+  const k = a.kanit || {}, gps = a.tip === "jamming" || a.tip === "spoofing", gpsBagli = a.tip === "gps_bagli", belirsiz = a.tip === "belirsiz" || gpsBagli;
   const bit = a.bit_sn === null ? u.sure_sn : a.bit_sn, sure = Math.round(bit - a.bas_sn);
   const k0 = saatSn(u.kalkis);
   let govde = "";
-  if (gps){
+  if (gps && k.cipler){
+    govde += '<div class="kaydir"><table><thead><tr><th>ÖLÇÜM</th><th class="m">DEĞER</th></tr></thead><tbody>' +
+      k.cipler.map((c) => '<tr class="on"><td>' + esc(c[0]) + '</td><td class="m">' + esc(c[1]) + '</td></tr>').join("") + '</tbody></table></div>';
+  } else if (gps){
     govde += '<div class="kaydir"><table><thead><tr><th>ÖLÇÜM</th><th class="m">DEĞER</th><th class="m">GEREKEN</th></tr></thead><tbody>' +
       '<tr class="on"><td>Uydu sayısı</td><td class="m">' + esc(k.uydu === null || k.uydu === undefined ? "—" : k.uydu) + '</td><td class="m">en az 6</td></tr>' +
       '<tr class="on"><td>GPS fix tipi</td><td class="m">' + esc(k.fix === null || k.fix === undefined ? "—" : k.fix) + '</td><td class="m">en az 3 (3D fix)</td></tr></tbody></table></div>';
@@ -272,7 +275,8 @@ function alarmKart(a, u){
     pay = '<div class="pay-satir"><div class="pay-ust"><span>Teşhis payı · ' + esc(k.guven_kaynak) + '</span><b>%' + sayi(k.guven * 100, 0) + '</b></div><div class="pay-iz"><div class="pay-dolgu" style="width:' + sinirla(k.guven * 100, 0, 100).toFixed(0) + '%"></div></div><span class="dipnot" style="margin:0">Alarm skorunun bu sinyalden gelen kısmı. Olasılık değildir.</span></div>';
   }
   const oneri = k.oneri ? '<div class="oneri-kutu"><b>ÖNERİ (BASİT KURAL, DOĞRULANMADI)</b>' + esc(k.oneri.metin) + " " + esc(k.oneri.alt || "") + '</div>' : "";
-  const uyari = belirsiz ? '<div class="uyari">Model sapma gördü ama nedenini güvenle ayırt edemedi (iki kural ayrıştı ya da sapma çok küçük). Bu yüzden ekran bir neden iddia etmedi. Kısa süreli alarmlar çoğunlukla arıza geri alınırken değerlerin normale dönüş anıdır.</div>' : "";
+  const uyari = gpsBagli ? '<div class="uyari">Bu sapma bir GPS alarmı sırasında başladı ve 5 saniyeden kısa sürdü. Araç GPS konumundaki değişikliğe göre kendini düzeltirken motorlar kısa bir ayar yaptı; arıza sayılmadı.</div>'
+    : belirsiz ? '<div class="uyari">Model sapma gördü ama nedenini güvenle ayırt edemedi (iki kural ayrıştı ya da sapma çok küçük). Bu yüzden ekran bir neden iddia etmedi. Kısa süreli alarmlar çoğunlukla arıza geri alınırken değerlerin normale dönüş anıdır.</div>' : "";
   const tepe = a.tepe_skor !== null && a.tepe_skor !== undefined ? "tepe skor " + sayi(a.tepe_skor, 2) + "× (" + saatYaz(k0 + a.tepe_t, true) + ")" : "model skoru bu alarmı değerlendirmez";
   return '<article class="alarm' + (gps ? " gps" : belirsiz ? " belirsiz" : "") + '"><div class="alarm-ust"><span class="no">' + a.id + '</span><h3>' + esc(a.baslik || "Alarm") + '</h3>' +
     '<span class="hap ' + (a.bit === null ? "dev" : "bit") + '">' + (a.bit === null ? "● devam ediyor" : "✓ bitti") + '</span></div>' +
@@ -310,7 +314,7 @@ function ciz(g){
     sayiKutu("EN UZUN ALARM", sureYaz(u.alarm_en_uzun_sn)) + sayiKutu("UÇUŞ SÜRESİ", sureYaz(u.sure_sn)) +
     sayiKutu("EN YÜKSEK SKOR", enSkor ? sayi(enSkor, 2) + "×" : "—", "alarm sınırı 1,0×") + sayiKutu("EN YÜKSEK İRTİFA", sayi(u.irtifa_max, 1) + " m") +
     sayiKutu("BATARYA", batarya, "başta → sonda") + sayiKutu("MODEL İZLEDİ", "%" + kapsam, "uçuşun bu kadarında karar verebildi") + '</div></section>' +
-    '<section class="kagit"><h2>UÇUŞ ZAMAN ÇİZELGESİ</h2><div class="kaydir" id="zcAlan"></div><p class="dipnot">Kırmızı bloklar model alarmları, turuncu şerit GPS jamming alarmlarıdır. Numaralar alarm kartlarıyla aynıdır.</p></section>' +
+    '<section class="kagit"><h2>UÇUŞ ZAMAN ÇİZELGESİ</h2><div class="kaydir" id="zcAlan"></div><p class="dipnot">Kırmızı bloklar model alarmları, turuncu şerit GPS alarmlarıdır (jamming ya da spoofing). Turuncu kısa bloklar GPS olayına bağlı kısa sapmalardır (arıza sayılmaz). Numaralar alarm kartlarıyla aynıdır.</p></section>' +
     '<section class="kagit gr-kart"><h2>MODEL SKORU ZAMAN İÇİNDE</h2><div class="kaydir" id="grafikAlan"></div><p class="dipnot">Skor = Mahalanobis mesafesi ÷ modelin eşiği (logaritmik eksen). 1\'in üstü alarmdır. Çizgideki boşluklar modelin karar vermediği anlardır (yerde, kalkışta, mod geçişlerinde; irtifa en az ' + sayi(u.min_irtifa, 0) + ' m ve 5 sn sabit uçuş gerekir).</p></section></div>' +
     '<div class="sutun sag"><section class="kagit alarmlar"><h2>ALARMLAR (' + u.alarmlar.length + ')</h2>' + (u.alarmlar.length ? '<div class="alarm-liste">' + u.alarmlar.map((a) => alarmKart(a, u)).join("") + '</div>' : '<p class="alt">Bu uçuşta alarm kaydı yok.</p>') + '</section>' +
     '<section class="kagit yontem"><h2>YÖNTEM VE SINIRLAR</h2><ul>' +

@@ -7,6 +7,7 @@ from datetime import datetime
 from anomali_model import MahalanobisModeli, AnomaliDedektoru
 from aciklama import Aciklayici
 from ekran import EkranDurumu, sunucu_baslat
+from spoof_tespit import SpoofIzleyici, spoofing_aciklama
 
 # --- Prometheus metriklerini tanımla ---
 
@@ -19,6 +20,13 @@ gps_hdop = Gauge('drone_gps_hdop', 'GPS yatay doğruluk (HDOP)', ['drone_id'])
 gps_fix = Gauge('drone_gps_fix_type', 'GPS fix tipi (0-1 = fix yok, 3+ = 3D fix)', ['drone_id'])
 gps_jamming = Gauge('drone_gps_jamming_alarm', 'GPS jamming alarmı (1=jamming şüphesi)', ['drone_id'])
 baglanti_durumu = Gauge('drone_connected', 'Bağlantı durumu (1=bağlı, 0=değil)', ['drone_id'])
+
+# GPS spoofing (kendi Kalman filtremiz, exporter/spoof_tespit.py)
+spoof_alarm = Gauge('drone_gps_spoofing_alarm', 'GPS spoofing alarmı (1=spoofing şüphesi)', ['drone_id'])
+spoof_aktif = Gauge('drone_gps_spoofing_active', 'Spoofing izlemesi çalışıyor mu (1=evet, 0=kapı kapalı)', ['drone_id'])
+spoof_nis = Gauge('drone_gps_spoof_nis', 'GPS konum yeniliği NIS (chi-kare, sınır 9.21)', ['drone_id'])
+spoof_nis_v = Gauge('drone_gps_spoof_nis_vel', 'GPS hız yeniliği NIS (chi-kare, sınır 9.21)', ['drone_id'])
+spoof_kayma = Gauge('drone_gps_spoof_drift_m', 'Son 12.6 sn konum yeniliği ortalaması (m, sınır 0.18)', ['drone_id'])
 
 # Anomali modeli (Mahalanobis): normal uçuştan ne kadar uzak?
 anomali_skor = Gauge('drone_anomaly_score', 'Modelin skoru: mesafe / alarm eşiği (1.0 = sınır, üstü anomali)', ['drone_id'])
@@ -57,6 +65,22 @@ JAM_TUTMA_SN = 10
 # etkilenmez (time.time etkilenirdi).
 jam_durum = {'son': None, 'hazir': False}
 
+# Spoofing alarmı açıldıktan sonra SPOOF_TUTMA_SN saniye açık kalır. Ani sıçramada saldırı sonrası
+# sabit kalan kayma artık görünmez (filtre yeni konuma oturur); alarmın hemen kapanmaması için uzun tutulur.
+SPOOF_TUTMA_SN = 30
+spoof = SpoofIzleyici(kilit_sn=SPOOF_TUTMA_SN)
+spoof_durum = {'alarm': False, 'sonuc': None}
+
+
+def spoof_yaz(sonuc, alarm):
+    """sonuc None ise izleme kapalı (yerde, GPS sağlıksız ya da jamming var)."""
+    spoof_aktif.labels(drone_id=DRONE_ID).set(0 if sonuc is None else 1)
+    spoof_alarm.labels(drone_id=DRONE_ID).set(1 if alarm else 0)
+    nan = float('nan')
+    spoof_nis.labels(drone_id=DRONE_ID).set(nan if sonuc is None else sonuc['nis'])
+    spoof_nis_v.labels(drone_id=DRONE_ID).set(nan if sonuc is None else sonuc['nis_v'])
+    spoof_kayma.labels(drone_id=DRONE_ID).set(nan if sonuc is None else sonuc['m'])
+
 
 def anomali_yaz(skor, alarm, tur=None):
     """skor None ise model karar vermiyor (kapı kapalı): alarm yok, skor boş.
@@ -66,6 +90,14 @@ def anomali_yaz(skor, alarm, tur=None):
     anomali_alarm.labels(drone_id=DRONE_ID).set(1 if alarm else 0)
     for t in TURLER:
         anomali_tur.labels(drone_id=DRONE_ID, tur=t).set(1 if (alarm and t == tur) else 0)
+
+
+def spoof_ozet():
+    s_ = spoof_durum['sonuc']
+    if not spoof.aktif or s_ is None:
+        return 'spoof: izleme kapalı'
+    return (f"spoof NIS {s_['nis']:.1f} hızNIS {s_['nis_v']:.1f} kayma {s_['m']:.2f}"
+            + (" ALARM" if spoof_durum['alarm'] else ""))
 
 
 def main():
@@ -169,6 +201,30 @@ def main():
             )
             gps_jamming.labels(drone_id=DRONE_ID).set(1 if jamming_aktif else 0)
 
+            # Spoofing: her yeni GPS ölçümünde kendi filtremiz bir adım ilerler.
+            # Zaman olarak GPS'in kendi zaman damgası kullanılır (ağ gecikmesinden etkilenmesin).
+            t_gps = mesaj.time_usec / 1e6 if mesaj.time_usec else simdi
+            kapi = (son['armed'] == 1 and son['irtifa'] is not None
+                    and son['irtifa'] >= SpoofIzleyici.MIN_IRTIFA_M and saglikli and not jamming_aktif)
+            sonuc = spoof.gps(t_gps, mesaj.lat, mesaj.lon, mesaj.vel, mesaj.cog, kapi)
+            if sonuc is not None:
+                spoof_durum['sonuc'] = sonuc
+            spoof_alarm_simdi = spoof.alarm(t_gps)
+            spoof_yaz(sonuc, spoof_alarm_simdi)
+            if spoof_alarm_simdi and not spoof_durum['alarm']:
+                s_ = spoof_durum['sonuc'] or {}
+                print(f"{datetime.now():%H:%M:%S} GPS SPOOFING ALARMI BAŞLADI | test {s_.get('tetik')} | "
+                      f"NIS {s_.get('nis', 0):.1f} | hız NIS {s_.get('nis_v', 0):.1f} | kayma {s_.get('m', 0):.2f} m", flush=True)
+            elif spoof_durum['alarm'] and not spoof_alarm_simdi:
+                print(f"{datetime.now():%H:%M:%S} GPS spoofing alarmı bitti", flush=True)
+            spoof_durum['alarm'] = spoof_alarm_simdi
+
+        elif tip == 'ATTITUDE':
+            spoof.attitude(mesaj.roll, mesaj.pitch, mesaj.yaw)
+
+        elif tip == 'RAW_IMU':
+            spoof.raw_imu(mesaj.xacc, mesaj.yacc, mesaj.zacc)
+
         an = time.monotonic()
 
         # Model kararı: saniyede bir, defterin son haline bakarak
@@ -192,16 +248,17 @@ def main():
 
             if ekran is not None:
                 jam_simdi = jam_durum['son'] is not None and (an - jam_durum['son']) < JAM_TUTMA_SN
+                spoof_bilgi = spoofing_aciklama(spoof_durum['sonuc']) if spoof_durum['alarm'] else None
                 ekran.guncelle(datetime.now(), son, baglanti.flightmode, sebep,
                                (mesafe / esik) if sebep is None else None, alarm, jam_simdi,
-                               son['uydu'], son['fix'], tur if sebep is None else None)
+                               son['uydu'], son['fix'], tur if sebep is None else None, spoof_bilgi)
 
         # Kontrol: her 10 saniyede bir defterin içini yaz (flush: log dosyasına hemen düşsün)
         if an - son_yazdirma >= 10:
             son_yazdirma = an
             print(f"mod {baglanti.flightmode} | armed {son['armed']} | irtifa {son['irtifa']} | "
                   f"motor {son['m1']} {son['m2']} {son['m3']} {son['m4']} | "
-                  f"V {son['voltaj']} | A {son['akim']} | {model_ozet}", flush=True)
+                  f"V {son['voltaj']} | A {son['akim']} | {model_ozet} | {spoof_ozet()}", flush=True)
 
 if __name__ == '__main__':
     main()

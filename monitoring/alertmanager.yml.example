@@ -1,3 +1,5 @@
+   templates:
+     - /etc/alertmanager/telegram.tmpl
    route:
      receiver: telegram
      group_wait: 5s
@@ -10,3 +12,5 @@
          - bot_token: 'BURAYA_TOKEN'
            chat_id: BURAYA_CHAT_ID
            send_resolved: true
+           parse_mode: HTML
+           message: '{{ template "iha.telegram" . }}'

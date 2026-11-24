@@ -15,6 +15,7 @@ services:
     ports: ["9093:9093"]
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - ./telegram.tmpl:/etc/alertmanager/telegram.tmpl
     command: ['--config.file=/etc/alertmanager/alertmanager.yml', '--log.level=debug']
   grafana:
     image: grafana/grafana:latest
