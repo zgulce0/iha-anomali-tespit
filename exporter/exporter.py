@@ -2,6 +2,7 @@ from pymavlink import mavutil
 from prometheus_client import start_http_server, Gauge
 import os
 import time
+from collections import deque
 from datetime import datetime
 
 from anomali_model import MahalanobisModeli, AnomaliDedektoru
@@ -24,9 +25,9 @@ baglanti_durumu = Gauge('drone_connected', 'Bağlantı durumu (1=bağlı, 0=değ
 # GPS spoofing (kendi Kalman filtremiz, exporter/spoof_tespit.py)
 spoof_alarm = Gauge('drone_gps_spoofing_alarm', 'GPS spoofing alarmı (1=spoofing şüphesi)', ['drone_id'])
 spoof_aktif = Gauge('drone_gps_spoofing_active', 'Spoofing izlemesi çalışıyor mu (1=evet, 0=kapı kapalı)', ['drone_id'])
-spoof_nis = Gauge('drone_gps_spoof_nis', 'GPS konum yeniliği NIS (chi-kare, sınır 9.21)', ['drone_id'])
-spoof_nis_v = Gauge('drone_gps_spoof_nis_vel', 'GPS hız yeniliği NIS (chi-kare, sınır 13.82, art arda 2 ölçüm)', ['drone_id'])
-spoof_kayma = Gauge('drone_gps_spoof_drift_m', 'Kestirilen GPS sapması (m, sınır ~7.3)', ['drone_id'])
+spoof_nis = Gauge('drone_gps_spoof_nis', 'GPS konum yeniliği NIS, son 5 sn en yüksek (chi-kare, sınır 9.21)', ['drone_id'])
+spoof_nis_v = Gauge('drone_gps_spoof_nis_vel', 'GPS hız yeniliği NIS, son 5 sn en yüksek (chi-kare, sınır 13.82, art arda 2 ölçüm)', ['drone_id'])
+spoof_kayma = Gauge('drone_gps_spoof_drift_m', 'Kestirilen GPS sapması, son 5 sn en yüksek (m, sınır ~7.3)', ['drone_id'])
 
 # Anomali modeli (Mahalanobis): normal uçuştan ne kadar uzak?
 anomali_skor = Gauge('drone_anomaly_score', 'Modelin skoru: mesafe / alarm eşiği (1.0 = sınır, üstü anomali)', ['drone_id'])
@@ -72,14 +73,29 @@ spoof = SpoofIzleyici(kilit_sn=SPOOF_TUTMA_SN)
 spoof_durum = {'alarm': False, 'sonuc': None}
 
 
+# Prometheus değerleri birkaç saniyede bir okur; sıçrama anındaki yüksek NIS ise yarım saniye sürer.
+# Anlık değer yazılırsa Grafana bu tepeleri kaçırır. Bu yüzden son TEPE_SN saniyenin en yükseği yazılır.
+TEPE_SN = 5.0
+spoof_gecmis = deque()      # (saat, nis, nis_v, sapma)
+
+
 def spoof_yaz(sonuc, alarm):
     """sonuc None ise izleme kapalı (yerde, GPS sağlıksız ya da jamming var)."""
     spoof_aktif.labels(drone_id=DRONE_ID).set(0 if sonuc is None else 1)
     spoof_alarm.labels(drone_id=DRONE_ID).set(1 if alarm else 0)
     nan = float('nan')
-    spoof_nis.labels(drone_id=DRONE_ID).set(nan if sonuc is None else sonuc['nis'])
-    spoof_nis_v.labels(drone_id=DRONE_ID).set(nan if sonuc is None else sonuc['nis_v'])
-    spoof_kayma.labels(drone_id=DRONE_ID).set(nan if sonuc is None else sonuc['sapma'])
+    if sonuc is None:
+        spoof_gecmis.clear()
+        for g in (spoof_nis, spoof_nis_v, spoof_kayma):
+            g.labels(drone_id=DRONE_ID).set(nan)
+        return
+    an = time.monotonic()
+    spoof_gecmis.append((an, sonuc['nis'], sonuc['nis_v'], sonuc['sapma']))
+    while spoof_gecmis and spoof_gecmis[0][0] < an - TEPE_SN:
+        spoof_gecmis.popleft()
+    spoof_nis.labels(drone_id=DRONE_ID).set(max(x[1] for x in spoof_gecmis))
+    spoof_nis_v.labels(drone_id=DRONE_ID).set(max(x[2] for x in spoof_gecmis))
+    spoof_kayma.labels(drone_id=DRONE_ID).set(max(x[3] for x in spoof_gecmis))
 
 
 def anomali_yaz(skor, alarm, tur=None):

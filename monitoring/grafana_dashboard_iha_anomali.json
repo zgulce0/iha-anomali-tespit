@@ -580,7 +580,7 @@
         "kind": "Panel",
         "spec": {
           "id": 7,
-          "title": "Spoofing · konum NIS (sınır 9,21; art arda 3 ölçüm, logaritmik)",
+          "title": "Spoofing · konum NIS, son 5 sn en yüksek (sınır 9,21; art arda 3 ölçüm, logaritmik)",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -597,7 +597,7 @@
                         "name": "fg0my9ay0vdvkf"
                       },
                       "spec": {
-                        "expr": "drone_gps_spoof_nis",
+                        "expr": "max_over_time(drone_gps_spoof_nis[$__interval])",
                         "legendFormat": "konum NIS"
                       }
                     },
@@ -607,7 +607,9 @@
                 }
               ],
               "transformations": [],
-              "queryOptions": {}
+              "queryOptions": {
+                "interval": "5s"
+              }
             }
           },
           "vizConfig": {
@@ -672,7 +674,7 @@
         "kind": "Panel",
         "spec": {
           "id": 8,
-          "title": "Spoofing · hız NIS (sınır 13,8; art arda 2 ölçüm, logaritmik)",
+          "title": "Spoofing · hız NIS, son 5 sn en yüksek (sınır 13,8; art arda 2 ölçüm, logaritmik)",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -689,7 +691,7 @@
                         "name": "fg0my9ay0vdvkf"
                       },
                       "spec": {
-                        "expr": "drone_gps_spoof_nis_vel",
+                        "expr": "max_over_time(drone_gps_spoof_nis_vel[$__interval])",
                         "legendFormat": "hız NIS"
                       }
                     },
@@ -699,7 +701,9 @@
                 }
               ],
               "transformations": [],
-              "queryOptions": {}
+              "queryOptions": {
+                "interval": "5s"
+              }
             }
           },
           "vizConfig": {
@@ -764,7 +768,7 @@
         "kind": "Panel",
         "spec": {
           "id": 9,
-          "title": "Spoofing · kestirilen GPS sapması (sınır 7,3 m)",
+          "title": "Spoofing · kestirilen GPS sapması, son 5 sn en yüksek (sınır 7,3 m)",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -781,7 +785,7 @@
                         "name": "fg0my9ay0vdvkf"
                       },
                       "spec": {
-                        "expr": "drone_gps_spoof_drift_m",
+                        "expr": "max_over_time(drone_gps_spoof_drift_m[$__interval])",
                         "legendFormat": "sapma"
                       }
                     },
@@ -791,7 +795,9 @@
                 }
               ],
               "transformations": [],
-              "queryOptions": {}
+              "queryOptions": {
+                "interval": "5s"
+              }
             }
           },
           "vizConfig": {
