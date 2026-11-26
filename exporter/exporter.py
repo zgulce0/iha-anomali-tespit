@@ -9,6 +9,7 @@ from anomali_model import MahalanobisModeli, AnomaliDedektoru
 from aciklama import Aciklayici
 from ekran import EkranDurumu, sunucu_baslat
 from spoof_tespit import SpoofIzleyici, spoofing_aciklama
+from harita import HaritaDurumu
 
 # --- Prometheus metriklerini tanımla ---
 
@@ -119,7 +120,8 @@ def spoof_ozet():
 # Spoofing dedektörü ivmeölçeri (RAW_IMU) ve tutum açılarını (ATTITUDE) sık ister: iki GPS ölçümü
 # arasındaki ivmenin ortalaması alınır. Seyrek gelirse ani bir sarsıntı yanlış ölçülür.
 # Not: MAVProxy'de "set streamrate -1" yazılmazsa MAVProxy bu hızları kendi değeriyle ezer.
-ISTENEN_HIZLAR = {27: 50, 30: 50, 24: 10}    # RAW_IMU, ATTITUDE: 50 Hz; GPS_RAW_INT: 10 Hz
+ISTENEN_HIZLAR = {27: 50, 30: 50, 24: 10,     # RAW_IMU, ATTITUDE: 50 Hz; GPS_RAW_INT: 10 Hz
+                  33: 10, 164: 5}             # harita için: GLOBAL_POSITION_INT 10 Hz, SIMSTATE (gerçek konum, sadece SITL) 5 Hz
 
 
 def mesaj_hizlarini_iste(baglanti):
@@ -154,10 +156,11 @@ def main():
         print(f"UYARI: anomali modeli yüklenemedi ({hata}); sadece jamming kuralı çalışacak.")
     # Operatör ekranı (salt okunur web sayfası): http://localhost:8088/
     ekran = None
+    harita = HaritaDurumu()
     if dedektor is not None:
         ekran = EkranDurumu(Aciklayici(dedektor.model), DRONE_ID, os.environ.get('GRAFANA_PANEL_URL', ''))
-        _, ekran_port = sunucu_baslat(ekran)
-        print(f"Operatör ekranı: http://localhost:{ekran_port}/")
+        _, ekran_port = sunucu_baslat(ekran, harita=harita)
+        print(f"Operatör ekranı: http://localhost:{ekran_port}/   3B harita: http://localhost:{ekran_port}/harita")
     sonraki_karar = time.monotonic()
     onceki_alarm = False
     model_ozet = 'model: henüz karar yok'
@@ -175,6 +178,8 @@ def main():
 
         baglanti_durumu.labels(drone_id=DRONE_ID).set(1)
         tip = mesaj.get_type()
+        if tip in ('SIMSTATE', 'GPS_RAW_INT', 'GLOBAL_POSITION_INT', 'ATTITUDE'):
+            harita.mesaj(mesaj)
 
         if tip == 'BATTERY_STATUS':
             if mesaj.voltages[0] != 65535:  # sentinel değeri hatırlıyoruz
@@ -250,6 +255,7 @@ def main():
                           "Spoofing hız testi bu sürede daha az hassas.", flush=True)
             if sonuc is not None:
                 spoof_durum['sonuc'] = sonuc
+            harita.filtre_konum(spoof.tahmin_konum())
             spoof_alarm_simdi = spoof.alarm(t_gps)
             spoof_yaz(sonuc, spoof_alarm_simdi)
             if spoof_alarm_simdi and not spoof_durum['alarm']:
@@ -296,7 +302,13 @@ def main():
                 spoof_bilgi = spoofing_aciklama(spoof_durum['sonuc']) if spoof_durum['alarm'] else None
                 ekran.guncelle(datetime.now(), son, baglanti.flightmode, sebep,
                                (mesafe / esik) if sebep is None else None, alarm, jam_simdi,
-                               son['uydu'], son['fix'], tur if sebep is None else None, spoof_bilgi)
+                               son['uydu'], son['fix'], tur if sebep is None else None, spoof_bilgi,
+                               konum=harita.konum_ozeti())
+                ed = ekran.durum
+                harita.kare(datetime.now(), son['armed'] == 1, spoof_durum['alarm'], jam_simdi,
+                            ed.get('durum') == 'alarm', tur if (alarm and sebep is None) else None,
+                            ed.get('baslik') if ed.get('durum') == 'alarm' else None,
+                            son['voltaj'], son.get('batarya'), baglanti.flightmode)
 
         # Kontrol: her 10 saniyede bir defterin içini yaz (flush: log dosyasına hemen düşsün)
         if an - son_yazdirma >= 10:

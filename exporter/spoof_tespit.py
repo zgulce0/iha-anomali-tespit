@@ -260,6 +260,14 @@ class SpoofIzleyici:
                                  ivme_std=self.ivme_std)
         return self.son
 
+    def tahmin_konum(self):
+        """Filtrenin aracın GERÇEK konumu için tahmini (enlem, boylam): GPS'ten, filtrenin kestirdiği GPS
+        hatası çıkarılmış hali. Gerçek bir araçta da hesaplanabilir. Filtre çalışmıyorsa None."""
+        x = getattr(self.det, 'x', None)
+        if not self.aktif or x is None or self.ref is None:
+            return None
+        return (self.ref[0] + x[0] / M_DERECE, self.ref[1] + x[1] / (M_DERECE * self.ref[2]))
+
     def alarm(self, t):
         """Kilit suresi dolmadiysa True (izleme kesilse bile acik alarm kilit suresince surer)."""
         return t <= self.det.kilit_bitis

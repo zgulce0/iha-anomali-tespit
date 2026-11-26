@@ -19,4 +19,13 @@ echo "Operatör ekranı: http://localhost:8088  (SITL bağlandıktan birkaç san
 echo "[3/3] SITL başlatılıyor..."
 cd "$HOME/ardupilot/ArduCopter"
 # -w: önceki oturumdan kalan parametreleri (ör. jamming ayarı) sıfırlar, her açılış temiz başlar
-sim_vehicle.py -w --console --map --out=127.0.0.1:14551 --out=127.0.0.1:14552 --out=127.0.0.1:14553
+# Ev (kalkış) konumu: scripts/ev_konumu.txt içinde "enlem,boylam" varsa araç oradan kalkar (ör. kampüs).
+# Yükseklik bilerek 584 m: arıza modeli ArduPilot'un varsayılan sahasında (CMAC, 584 m) eğitildi ve
+# simülatörde motor itkisi hava yoğunluğuna, yani deniz seviyesinden yüksekliğe bağlı. Konum değişir,
+# fizik aynı kalır. Dosya yoksa varsayılan saha (CMAC) kullanılır.
+KONUM_ARG=""
+if [ -f "$PROJE/scripts/ev_konumu.txt" ]; then
+  EV=$(grep -v '^#' "$PROJE/scripts/ev_konumu.txt" | tr -d ' \r' | head -1)
+  [ -n "$EV" ] && KONUM_ARG="--custom-location=${EV},584,0" && echo "Ev konumu: $EV (yükseklik 584 m)"
+fi
+sim_vehicle.py -w $KONUM_ARG --console --map --out=127.0.0.1:14551 --out=127.0.0.1:14552 --out=127.0.0.1:14553

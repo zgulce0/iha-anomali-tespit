@@ -5,6 +5,7 @@ Operatör ekranı: exporter'ın yanında çalışan küçük, SADECE OKUMA yapan
   http://localhost:8088/durum         anlık durum (JSON)
   http://localhost:8088/rapor         son uçuşun olay raporu (ekran_rapor.html); ?n=1 bir önceki uçuş
   http://localhost:8088/gecmis        rapor verisi (JSON); ?n=0 son uçuş, ?n=1 bir önceki
+  http://localhost:8088/harita        canlı 3B harita (harita_sayfa.html, veri: harita.py)
 
 Sadece standart kütüphane. exporter.py her karar anında (saniyede bir) EkranDurumu.guncelle()
 çağırır; sunucu ayrı bir iş parçacığında çalışır. Sayfa kendisi saniyede bir /durum'u okur.
@@ -25,6 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from aciklama import jamming_aciklama
+from harita import mesafe_m
 
 try:
     from anomali_model import AnomaliDedektoru
@@ -36,6 +38,7 @@ except Exception:           # ekran tek başına da çalışsın (testler)
 KLASOR = os.path.dirname(os.path.abspath(__file__))
 SAYFA_YOLU = os.path.join(KLASOR, 'ekran_sayfa.html')
 RAPOR_YOLU = os.path.join(KLASOR, 'ekran_rapor.html')
+HARITA_YOLU = os.path.join(KLASOR, 'harita_sayfa.html')
 MAKS_OLAY = 30
 MAKS_UCUS = 5              # bellekte tutulan uçuş sayısı
 MAKS_SERI = 7200           # uçuş başına skor örneği (saniyede 1 örnek ~ 2 saat)
@@ -44,6 +47,11 @@ GERCEK_UCUS_M = 1.0        # bundan alçak kalan "uçuş" sadece yerde arm edilm
 # boyunca "dikkat" olarak gösterilir: araç GPS'teki değişikliğe göre konumunu düzeltirken motorlar kısa bir
 # ayar yapar, model bunu görür. Bundan uzun süren model alarmı normal arıza alarmı olur (gerçek arıza gizlenmez).
 GPS_BAGLI_SN = 5.0
+# Aynı GPS sıçraması model alarmını GPS alarmından biraz ÖNCE de başlatabilir (model saniyede bir karar
+# verir, spoofing testi 0,2-0,6 sn sürer). GPS alarmı başladığında son GPS_ONCE_SN içinde başlamış kısa
+# model alarmı da GPS'e bağlı sayılır.
+GPS_ONCE_SN = 2.0
+IZ_MAKS = 3600              # rapordaki yol haritası için saniyede bir konum (1 saat)
 GPS_BAGLI = {
     'baslik': 'Kısa sapma (GPS olayına bağlı)',
     'kisa': 'Araç konumu düzeltirken motorlar kısa bir ayar yaptı',
@@ -84,6 +92,8 @@ class Ucus:
         self.irtifa_max = 0.0
         self.batarya_ilk = None
         self.batarya_son = None
+        self.iz = deque(maxlen=IZ_MAKS)         # (t, gerçek enlem, boylam, GPS enlem, boylam); gerçek sadece simülasyonda
+        self.son_konum = None                   # son bilinen konum (alarm iğnesi için)
 
     def t(self, saat):
         t = max((saat - self.baslangic).total_seconds(), self.son_t)   # saat geri sıçrarsa geri gitme
@@ -142,11 +152,60 @@ class Ucus:
             r['kanit'] = dict(r['kanit'], cumle=GPS_BAGLI['cumle'], oneri=GPS_BAGLI['oneri'],
                               guven=None, guven_kaynak=None)
 
+    def gps_bagli_yap(self, r):
+        """Bir model alarmı kaydını 'GPS olayına bağlı kısa sapma' olarak işaretle."""
+        r['gps_bagli'] = True
+        r['tip'], r['motor'], r['etiket'] = 'gps_bagli', None, "GPS'e bağlı"
+        r['baslik'], r['ne'] = GPS_BAGLI['baslik'], GPS_BAGLI['kisa']
+        if r['kanit'] is not None:
+            r['kanit'] = dict(r['kanit'], cumle=GPS_BAGLI['cumle'], oneri=GPS_BAGLI['oneri'],
+                              guven=None, guven_kaynak=None)
+
     def gps_alarm_isle(self, saat, t, jam, uydu, fix):
+        yeni = self.aktif['gps'] is None
         r = self.aktif['gps'] or self.alarm_ac('gps', saat, t)
+        if yeni:
+            r['konum'] = self.son_konum
+            r['gps_hata_maks'] = None
+            r['guvenilir_hata_m'] = None
+            # GPS alarmından hemen önce başlamış kısa model alarmları aynı olayın parçası
+            for a in reversed(self.alarmlar):
+                if a is r or a['kaynak'] != 'model':
+                    continue
+                if t - a['bas_sn'] > GPS_ONCE_SN:
+                    break
+                sure = (a['bit_sn'] if a['bit_sn'] is not None else t) - a['bas_sn']
+                if sure < GPS_BAGLI_SN and not a.get('gps_bagli'):
+                    self.gps_bagli_yap(a)
         r['tip'], r['etiket'], r['baslik'], r['ne'] = jam['tur'], 'GPS', jam['baslik'], jam['kisa']
         r['kanit'] = {'cumle': jam['cumle'], 'saat': _hms(saat), 'uydu': uydu, 'fix': fix, 'cipler': jam.get('cipler'),
                       'oneri': jam['oneri'], 'guven': None, 'guven_kaynak': None, 'sinyaller': [], 'telafi': []}
+
+    def konum_isle(self, t, konum):
+        """konum: {'gercek': (enlem, boylam) ya da None, 'gps': ..., 'son_guvenilir': {...} ya da None}"""
+        if not konum:
+            return
+        g, p = konum.get('gercek'), konum.get('gps')
+        if g is None and p is None:
+            return
+        self.son_konum = g or p
+        if not self.iz or t - self.iz[-1][0] >= 0.9:
+            self.iz.append((round(t, 1), g[0] if g else None, g[1] if g else None,
+                            p[0] if p else None, p[1] if p else None))
+        r = self.aktif['gps']
+        if r is not None:
+            if r.get('konum') is None:
+                r['konum'] = self.son_konum
+            if g and p:
+                h = mesafe_m(g, p)
+                if r.get('gps_hata_maks') is None or h > r['gps_hata_maks']:
+                    r['gps_hata_maks'] = round(h, 1)
+            sg = konum.get('son_guvenilir')
+            if g and sg:
+                r['guvenilir_hata_m'] = round(mesafe_m((sg['enlem'], sg['boylam']), g), 1)
+        for r in self.alarmlar:                       # model alarmlarına da başladıkları yeri yaz
+            if r.get('konum') is None and r['bit_sn'] is None:
+                r['konum'] = self.son_konum
 
     # --- özet ------------------------------------------------------------------------
     def sure_sn(self):
@@ -154,9 +213,10 @@ class Ucus:
 
     def ozet(self):
         simdi = self.son_t
-        araliklar = [(a['bas_sn'], a['bit_sn'] if a['bit_sn'] is not None else simdi) for a in self.alarmlar]
+        asil = [a for a in self.alarmlar if not a.get('gps_bagli')]     # GPS'e bağlı kısa sapmalar alarm sayılmaz
+        araliklar = [(a['bas_sn'], a['bit_sn'] if a['bit_sn'] is not None else simdi) for a in asil]
         sureler = [b - a for a, b in araliklar]
-        kapali = [a for a in self.alarmlar if a['bit_sn'] is not None]
+        kapali = [a for a in asil if a['bit_sn'] is not None]
         son = kapali[-1] if kapali else None
         return {
             'numara': self.numara,
@@ -165,7 +225,8 @@ class Ucus:
             'bitis': _hms(self.bitis) if self.bitis else None,
             'devam': self.bitis is None,
             'sure_sn': int(simdi),
-            'alarm_adet': len(self.alarmlar),
+            'alarm_adet': len(asil),
+            'kisa_sapma_adet': len(self.alarmlar) - len(asil),
             'alarm_toplam_sn': int(round(_birlesim_sn(araliklar))),
             'alarm_en_uzun_sn': int(round(max(sureler))) if sureler else 0,
             'son_alarm': ({'etiket': son['etiket'], 'sure_sn': int(round(son['bit_sn'] - son['bas_sn'])),
@@ -210,7 +271,7 @@ class EkranDurumu:
                                'cumle': 'İHA verisi gelmiyor. SITL açık mı?',
                                'aciklama': None, 'skor': None, 'alarm_suresi_sn': None, 'oneri': None})
 
-    def guncelle(self, saat, son, mod, sebep, skor, alarm, jam_aktif, uydu, fix, tur_kural=None, spoof=None):
+    def guncelle(self, saat, son, mod, sebep, skor, alarm, jam_aktif, uydu, fix, tur_kural=None, spoof=None, konum=None):
         """
         saat     : datetime (olay saatleri için)
         son      : exporter'daki "defter" ('armed','irtifa','voltaj','akim','m1'..'m4'; isteğe bağlı
@@ -222,6 +283,7 @@ class EkranDurumu:
         jam_aktif: GPS jamming kuralı alarmda mı
         uydu,fix : son GPS değerleri (jamming açıklaması için)
         tur_kural: exporter'daki dedektor.tur() sonucu ('batarya'/'motor1'..'motor4'); alarm yoksa None
+        konum    : rapordaki yol haritası için {'gercek','gps','son_guvenilir'} (harita.HaritaDurumu.konum_ozeti())
         spoof    : GPS spoofing alarmı varsa spoof_tespit.spoofing_aciklama() sözlüğü, yoksa None.
                    Ekranda jamming ile aynı "GPS alarmı" yerini kullanır; ikisi birden varsa jamming gösterilir.
         """
@@ -242,8 +304,19 @@ class EkranDurumu:
 
         with self.kilit:
             # GPS olayına bağlı kısa model sapması mı?
+            gps_yeni = jam_aktif and (self.gps_son is None or (saat - self.gps_son).total_seconds() > GPS_BAGLI_SN)
             if jam_aktif:
                 self.gps_son = saat
+            if gps_yeni:
+                # GPS alarmı az önce başladı: ondan hemen önce başlamış kısa model sapması da bu olayın parçası
+                if self.model_bas is not None and (saat - self.model_bas).total_seconds() <= GPS_ONCE_SN:
+                    self.model_gps_bagli = True
+                    if self.alarm_olayi is not None:
+                        self.alarm_olayi.update({'tur': GPS_BAGLI['baslik'], 'ne': GPS_BAGLI['kisa'], 'gps_bagli': True})
+                for o in self.olaylar[:4]:          # az önce bitmiş olanı da düzelt
+                    if (o.get('model') and not o.get('gps_bagli') and o.get('t') is not None
+                            and (saat - o['t']).total_seconds() <= GPS_ONCE_SN + 1.5):
+                        o.update({'tur': GPS_BAGLI['baslik'], 'ne': GPS_BAGLI['kisa'], 'gps_bagli': True})
             model_alarm = alarm and aciklama is not None
             if model_alarm:
                 if self.model_bas is None:
@@ -256,8 +329,8 @@ class EkranDurumu:
                 self.model_bas, self.model_gps_bagli = None, False
             gecici = model_alarm and self.model_gps_bagli
 
-            self._olaylari_isle(s, alarm, aciklama, jam_aktif, jam, gecici)
-            self._ucus_isle(saat, son, alarm, skor, aciklama, jam_aktif, jam, uydu, fix, gecici)
+            self._olaylari_isle(s, alarm, aciklama, jam_aktif, jam, gecici, saat)
+            self._ucus_isle(saat, son, alarm, skor, aciklama, jam_aktif, jam, uydu, fix, gecici, konum)
             dikkat = {'baslik': GPS_BAGLI['baslik'], 'kisa': GPS_BAGLI['kisa']} if gecici else None
             if model_alarm and not gecici:
                 durum, baslik, cumle = 'alarm', aciklama['baslik'], aciklama['cumle']
@@ -296,12 +369,12 @@ class EkranDurumu:
                 'aciklama': aciklama, 'jamming': jam, 'alarm_suresi_sn': sure, 'oneri': oneri,
                 'dikkat': dikkat,
                 'rejim': aciklama['rejim'] if aciklama else None,
-                'olaylar': list(self.olaylar),
+                'olaylar': [{k: v for k, v in o.items() if k != 't'} for o in self.olaylar],
                 'ucus': (dict(u.ozet(), segmentler=u.segmentler()) if u else None),
             })
 
     # --- uçuş kaydı ---------------------------------------------------------------------
-    def _ucus_isle(self, saat, son, alarm, skor, aciklama, jam_aktif, jam, uydu, fix, gecici=False):
+    def _ucus_isle(self, saat, son, alarm, skor, aciklama, jam_aktif, jam, uydu, fix, gecici=False, konum=None):
         armed = bool(son.get('armed'))
         u = self.ucuslar[0] if self.ucuslar and self.ucuslar[0].bitis is None else None
         if u is None:
@@ -329,6 +402,7 @@ class EkranDurumu:
                 u.batarya_ilk = b
             u.batarya_son = b
         u.seri.append((round(t, 1), None if skor is None else round(skor, 3)))
+        u.konum_isle(t, konum)
         if alarm and aciklama is not None:
             u.model_alarm_isle(saat, t, aciklama, skor, gecici)
         else:
@@ -338,7 +412,7 @@ class EkranDurumu:
         else:
             u.alarm_kapat('gps', saat, t)
 
-    def _olaylari_isle(self, s, alarm, aciklama, jam_aktif, jam, gecici=False):
+    def _olaylari_isle(self, s, alarm, aciklama, jam_aktif, jam, gecici=False, saat=None):
         # model alarmı: başlangıçta bir olay satırı aç, bitince kapat
         if alarm and aciklama is not None and self.alarm_olayi is None:
             if gecici:
@@ -347,8 +421,9 @@ class EkranDurumu:
                 self.alarm_olayi_skor = None
             else:
                 self.alarm_olayi = {'saat': s, 'tur': aciklama['baslik'], 'ne': aciklama['kisa'],
-                                    'durum': 'devam', 'bitis': None}
+                                    'durum': 'devam', 'bitis': None, 'model': True}
                 self.alarm_olayi_skor = aciklama['skor'] if aciklama['tur'] != 'belirsiz' else None
+            self.alarm_olayi['t'] = saat
             self._ekle(self.alarm_olayi)
         elif alarm and aciklama is not None and self.alarm_olayi is not None and gecici:
             pass                                       # GPS'e bağlı kısa sapma sürüyor: satır aynı kalır
@@ -397,7 +472,8 @@ class EkranDurumu:
             u = self.ucuslar[n]
             ucus = dict(u.ozet(), alarmlar=[{k: v for k, v in a.items() if k not in ('kanit_skor', 'kanit_net')}
                                             for a in u.alarmlar],
-                        seri=[[t, v] for t, v in u.seri], min_irtifa=MIN_IRTIFA_M)
+                        seri=[[t, v] for t, v in u.seri], min_irtifa=MIN_IRTIFA_M,
+                        iz=[list(p) for p in u.iz], simulasyon=any(p[1] is not None for p in u.iz))
             return _dump({'adet': adet, 'n': n, 'drone_id': self.drone_id, 'ucus': ucus})
 
 
@@ -418,7 +494,7 @@ SEBEP_METNI = {
 }
 
 
-def sunucu_baslat(durum, port=None, host=None):
+def sunucu_baslat(durum, port=None, host=None, harita=None):
     """Sunucuyu arka planda başlatır; (sunucu, port) döner."""
     port = int(port or os.environ.get('EKRAN_PORT', 8088))
     host = host or os.environ.get('EKRAN_HOST', '127.0.0.1')
@@ -439,6 +515,16 @@ def sunucu_baslat(durum, port=None, host=None):
                 self._dosya(SAYFA_YOLU, 'ekran_sayfa.html')
             elif yol in ('/rapor', '/rapor.html'):
                 self._dosya(RAPOR_YOLU, 'ekran_rapor.html')
+            elif yol in ('/harita', '/harita.html'):
+                self._dosya(HARITA_YOLU, 'harita_sayfa.html')
+            elif yol == '/harita/veri' and harita is not None:
+                self._gonder(200, 'application/json; charset=utf-8', harita.json())
+            elif yol == '/harita/anahtar':
+                # Cesium anahtarı sadece bu bilgisayardan açılan sayfaya verilir (sunucu 127.0.0.1'de dinler).
+                from harita import cesium_anahtari
+                a = cesium_anahtari()
+                govde = json.dumps({'anahtar': a}).encode('utf-8')
+                self._gonder(200 if a else 404, 'application/json; charset=utf-8', govde)
             else:
                 self._gonder(404, 'text/plain; charset=utf-8', b'yok')
 
