@@ -28,4 +28,8 @@ if [ -f "$PROJE/scripts/ev_konumu.txt" ]; then
   EV=$(grep -v '^#' "$PROJE/scripts/ev_konumu.txt" | tr -d ' \r' | head -1)
   [ -n "$EV" ] && KONUM_ARG="--custom-location=${EV},584,0" && echo "Ev konumu: $EV (yükseklik 584 m)"
 fi
+# MAVProxy açılırken ~/.mavinit.scr içindeki komutları çalıştırır. "set streamrate -1": MAVProxy mesaj
+# hızlarını kendi değeriyle ezmesin (exporter ivmeölçeri 50 Hz, GPS'i 10 Hz, barometreyi 10 Hz istiyor).
+# Böylece her açılışta elle yazmak gerekmez.
+grep -qx "set streamrate -1" "$HOME/.mavinit.scr" 2>/dev/null || echo "set streamrate -1" >> "$HOME/.mavinit.scr"
 sim_vehicle.py -w $KONUM_ARG --console --map --out=127.0.0.1:14551 --out=127.0.0.1:14552 --out=127.0.0.1:14553

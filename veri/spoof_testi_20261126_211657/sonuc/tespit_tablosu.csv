@@ -1,0 +1,19 @@
+desen,saldiri,tip,buyukluk,deneme,hatasiz_yakalama_%,hatasiz_sure_ort,hatasiz_sure_std,hatasiz_test,gercekci_yakalama_%,gercekci_sure_ort,gercekci_sure_std,gercekci_test,ardupilot_uyari_%,ardupilot_uyari_sure
+hover,Ani sıçrama,ani,1 m,5,0.0,,,,1.3333333333333335,0.5275000000001455,0.02750000000014552,konum sıçraması (konum NIS),0.0,
+hover,Ani sıçrama,ani,2 m,5,100.0,0.5562000000001092,0.0417439816020336,konum sıçraması (konum NIS),100.0,0.5562000000001092,0.04174398160203361,konum sıçraması (konum NIS),0.0,
+hover,Ani sıçrama,ani,5 m,5,100.0,0.5519999999999243,0.044452221541792236,konum sıçraması (konum NIS),100.0,0.5519999999999243,0.044452221541792236,konum sıçraması (konum NIS),100.0,1.3594000000001016
+hover,Ani sıçrama,ani,10 m,5,100.0,0.5403999999999997,0.04191228936719151,konum sıçraması (konum NIS),100.0,0.5403999999999997,0.04191228936719152,konum sıçraması (konum NIS),100.0,1.3448000000000662
+hover,Ani sıçrama,ani,25 m,5,100.0,0.32560000000022454,0.03484020665842158,GPS sapması,100.0,0.3135600000002258,0.057422118850954496,GPS sapması,100.0,1.247400000000141
+hover,Yavaş kayma,yavas,"0,10 m/s",5,100.0,108.03079999999981,0.4452960363624555,GPS sapması,85.33333333333334,101.84236718749987,10.669448158813625,GPS sapması,0.0,
+hover,Yavaş kayma,yavas,"0,20 m/s",5,100.0,52.56540000000011,0.10323681513882377,GPS sapması,100.0,52.32380666666675,6.501543481047864,GPS sapması,0.0,
+hover,Yavaş kayma,yavas,"0,50 m/s",5,100.0,21.031200000000034,0.04927636350220049,GPS sapması,100.0,21.068866666666654,2.1276416448474023,GPS sapması,0.0,
+hover,Yavaş kayma,yavas,1 m/s,5,100.0,10.843400000000134,0.030110463297639483,GPS sapması,100.0,7.396420000000165,3.348854893382721,konum sıçraması (konum NIS),0.0,
+hover,Tutarlı kayma (konum + hız),tutarli,"0,20 m/s",5,0.0,,,,2.0,0.21633333333329574,0.08520693764133803,GPS sapması,0.0,
+hover,Tutarlı kayma (konum + hız),tutarli,"0,50 m/s",5,100.0,0.36800000000014277,0.04304880950741565,hız tutarsızlığı (hız NIS),96.66666666666667,0.37035172413807543,0.05269594383850606,hız tutarsızlığı (hız NIS),0.0,
+hover,Tutarlı kayma (konum + hız),tutarli,1 m/s,5,100.0,0.35840000000002875,0.03499485676492446,hız tutarsızlığı (hız NIS),100.0,0.35840000000002875,0.03499485676492446,hız tutarsızlığı (hız NIS),0.0,
+hover,Yükseklik,irtifa_ani,2 m,5,0.0,,,,42.0,0.5453492063490976,0.05152196595202682,yükseklik (GPS-barometre),0.0,
+hover,Yükseklik,irtifa_ani,5 m,5,100.0,0.5739999999999782,0.05519057890617999,yükseklik (GPS-barometre),100.0,0.5687066666666457,0.07006621122590062,yükseklik (GPS-barometre),0.0,
+hover,Yükseklik,irtifa_ani,10 m,5,100.0,0.5687999999999647,0.06898811491830119,yükseklik (GPS-barometre),100.0,0.5529333333333094,0.09827469438024693,yükseklik (GPS-barometre),0.0,
+hover,Yükseklik,irtifa_ani,20 m,5,100.0,0.3917999999999665,0.05533317269030097,yükseklik (GPS-barometre),100.0,0.4779866666666476,0.1398146862417399,yükseklik (GPS-barometre),0.0,
+hover,Yükseklik,irtifa_yavas,"0,20 m/s",5,100.0,59.35320000000006,0.1030949077309828,yükseklik (GPS-barometre),82.0,56.32725203252041,13.240473114746813,yükseklik (GPS-barometre),0.0,
+hover,Yükseklik,irtifa_yavas,"0,50 m/s",5,100.0,24.332199999999876,0.050803149508963474,yükseklik (GPS-barometre),100.0,24.723419999999905,6.495169701934934,yükseklik (GPS-barometre),0.0,

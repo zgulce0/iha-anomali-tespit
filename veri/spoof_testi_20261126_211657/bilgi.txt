@@ -1,0 +1,9 @@
+baslangic: 2026-11-26 21:16:57
+desenler: ['hover']
+tur: 5
+irtifa: 10 m
+normal_sn: 120
+toparlanma_sn: 35
+yon sirasi: ['kuzey', 'dogu', 'kuzeydogu']
+plan (tip, deger, sure_sn): [('ani', 1.0, 10), ('ani', 2.0, 10), ('ani', 5.0, 10), ('ani', 10.0, 10), ('ani', 25.0, 10), ('yavas', 0.1, 120), ('yavas', 0.2, 75), ('yavas', 0.5, 40), ('yavas', 1.0, 30), ('tutarli', 0.2, 75), ('tutarli', 0.5, 40), ('tutarli', 1.0, 30), ('irtifa_ani', 2.0, 10), ('irtifa_ani', 5.0, 10), ('irtifa_ani', 10.0, 10), ('irtifa_ani', 20.0, 10), ('irtifa_yavas', 0.2, 75), ('irtifa_yavas', 0.5, 40)]
+mesaj hizlari: {27: 50, 30: 50, 24: 10, 29: 10, 33: 10, 164: 10}

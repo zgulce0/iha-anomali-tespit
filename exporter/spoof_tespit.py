@@ -30,6 +30,12 @@ Esikler ve neden:
           ~1e-6 (filtre kalibreyse; 5 Hz'de saatte ~0,02).
   ESIK_B: chi-kare (2 sd) %99.99 = 18.42.
 
+Yukseklik (irtifa) spoofing'i: IrtifaDedektor (asagida). GPS'in bildirdigi yukseklik, barometre ve IMU'nun
+dikey ivmesiyle karsilastirilir. Ayni yontemin dikey hali: durum [h, v_yukari, b_z], olcumler barometre (h)
+ve GPS yuksekligi (h + b_z). b_z, GPS ile barometrenin yavas gezinen yukseklik farki.
+  anlik : GPS yukseklik yeniligi NIS_z > 6.63 (chi-kare 1 sd %99), art arda 3 olcum.
+  yavas : |b_z|^2 / SIG_BZ^2 > 15.14 (chi-kare 1 sd %99.99), yani |b_z| > ~11.7 m.
+
 Kalibrasyon (analiz/spoof_kalibrasyon.py): simulatorun GPS'i hatasizdir, bu yuzden kayitli ucuslara
 gercekci GPS hatasi (NEO-M8N: 2,0 m CEP -> eksen basina ~1,7 m, yavas gezinme; hiz 0,05 m/s)
 eklenerek denendi. Normal ucusta hiz NIS ortalamasi ~2,05 (teori: 2) cikti, yani hiz testi
@@ -49,6 +55,13 @@ CHI2_99_2SD = 9.21
 ESIK_V = 13.82
 SIG_A_SEYREK = 1.0           # iki GPS olcumu arasinda ivme ornegi azsa tahmin bu kadar belirsiz sayilir (m/s2)
 ESIK_B = 18.42
+# Yukseklik testi (1 serbestlik derecesi)
+CHI2_99_1SD = 6.63
+ESIK_BZ = 15.14
+# GPS'in dikey hatasi yatayindan buyuktur (uydular hep ustte). NEO-M8N veri sayfasi dikey dogruluk vermiyor;
+# yaygin kabul dikeyin yatayin ~1,5-2 kati oldugu (eksen basina 1,7 m -> ~3 m). Barometrenin yavas kaymasi da
+# bu farkin icinde. Varsayimdir; analiz/spoof_roc.py bunu farkli degerlerle dener.
+SIG_BZ = 3.0
 
 
 class SpoofDedektor:
@@ -176,6 +189,135 @@ class SpoofDedektor:
                     tepe=dict(self.tepe) if (alarm and self.tepe) else None, sifirlandi=sifirlandi)
 
 
+class IrtifaDedektor:
+    """Yukseklik spoofing'i: GPS yuksekligi barometre ve IMU ile karsilastirilir (dogrusal Kalman, 3 durum).
+
+    Durum x = [h, v, b_z]: yukseklik (m, yukari +), dikey hiz (m/s), GPS-barometre yavas farki (m).
+      Tahmin   : IMU'nun dikey ivmesi ile h ve v; b_z yavasca sifira doner (Gauss-Markov).
+      Duzeltme : once barometre (olcum = h), sonra GPS yuksekligi (olcum = h + b_z).
+    Barometre ve IMU disaridan sahte sinyalle degistirilemez; GPS yuksekligi degistirilebilir.
+    Testler (SpoofDedektor ile ayni mantik, 1 serbestlik derecesi):
+      anlik : GPS yukseklik yeniligi NIS_z > esik_z, art arda anlik_n olcum (ani sicrama)
+      yavas : |b_z| / sig_bz kare > esik_bz (yavas kayma b_z'de birikir)
+    Not: ArduPilot yuksekligi varsayilan olarak barometreden alir (EK3_SRC1_POSZ = 1). Bu yuzden yukseklik
+    spoofing'i bu ayarla ucusu bozmaz; ama GPS yuksekligi kullanan bir arac (EK3_SRC1_POSZ = 3, RTK)
+    ya da GPS yuksekligini gosteren bir yer istasyonu yaniltilir. Test, saldirinin varligini gosterir."""
+
+    REF_SN = 3.0             # GPS ile barometrenin sifir farki: arac 3 sn dikeyde sabitken olculur
+    REF_OYNAMA_M = 0.5       # o 3 sn'de barometre yuksekligi en fazla bu kadar degismis olmali
+    GECIKME_BELIRSIZ_SN = 0.1  # GPS olcumunun zamanlama belirsizligi: tirmanirken/alcalirken GPS yuksekligi
+                               # bu kadar eski olabilir; olcum belirsizligine (0,1 sn x dikey hiz) eklenir
+
+    def __init__(self, sig_a=0.1, sig_baro=0.3, sig_wz=0.2, sig_bz=SIG_BZ, tau_bz=300.0,
+                 esik_z=CHI2_99_1SD, esik_bz=ESIK_BZ, anlik_n=3, sifirla_sn=0.8, kilit_sn=10.0, k_a=0.15):
+        self.sig_a, self.sig_bz, self.tau_bz, self.k_a = sig_a, sig_bz, tau_bz, k_a
+        self._ref = deque()      # (t, h_baro, h_gps): sifir farkini bulmak icin son olcumler
+        self.R_baro, self.R_gps = sig_baro ** 2, sig_wz ** 2
+        self.esik_z, self.esik_bz, self.anlik_n, self.sifirla_sn, self.kilit_sn = esik_z, esik_bz, anlik_n, sifirla_sn, kilit_sn
+        self.fark_siniri = math.sqrt(esik_bz) * sig_bz      # metre (~11,7)
+        self.x = None
+        self.t = None
+        self.ofs = None              # ilk anda GPS yuksekligi - barometre yuksekligi (ikisinin sifiri farkli)
+        self.kilit_bitis = -1.0
+        self.tepe = None
+        self.asim, self.asim_bas = 0, None
+
+    def _baslat(self, h_baro, h_gps):
+        self.x = np.array([h_baro, 0.0, h_gps - self.ofs - h_baro])
+        self.P = np.diag([self.R_baro, 0.5 ** 2, self.R_baro + self.R_gps])
+        self.asim, self.asim_bas = 0, None
+
+    def sifirla(self):
+        """Izleme kesilince: bastan baslar (yukseklik farkinin sifiri da yeniden olculur)."""
+        self.x = None
+        self.ofs = None
+        self._ref.clear()
+
+    def hazir(self):
+        return self.ofs is not None
+
+    def _referans(self, t, h_baro, h_gps):
+        """GPS yuksekligi deniz seviyesinden, barometre kalkis noktasindan olcer: aradaki sabit farki bul.
+        Arac dikeyde hareket ederken GPS'in gecikmesi farki bozar; bu yuzden REF_SN boyunca barometre
+        REF_OYNAMA_M'den az degistiyse farklarin ortalamasi alinir."""
+        self._ref.append((t, h_baro, h_gps))
+        while self._ref and t - self._ref[0][0] > self.REF_SN:
+            self._ref.popleft()
+        if t - self._ref[0][0] < self.REF_SN - 0.25:
+            return False
+        bar = [b for _, b, _ in self._ref]
+        if max(bar) - min(bar) > self.REF_OYNAMA_M:
+            return False
+        self.ofs = sum(g - b for _, b, g in self._ref) / len(self._ref)
+        return True
+
+    def _guncelle(self, z, H, R):
+        nu = z - H @ self.x
+        S = float(H @ self.P @ H) + R
+        K = self.P @ H / S
+        self.x = self.x + K * nu
+        self.P = self.P - np.outer(K, H @ self.P)
+        return nu * nu / S
+
+    def adim(self, t, h_baro, h_gps, a_yukari, imu_seyrek=False, ivme_std=0.0):
+        """t: sn, h_baro: barometre yuksekligi (m), h_gps: GPS yuksekligi (m), a_yukari: IMU dikey ivme (m/s2)."""
+        if self.x is None:
+            if self.ofs is None and not self._referans(t, h_baro, h_gps):
+                return None                          # sifir farki henuz olculmedi: test calismiyor
+            self.t = t
+            self._baslat(h_baro, h_gps)
+            return self._sonuc(t, 0.0, False, False)
+        dt = t - self.t
+        if dt <= 1e-3:
+            return self._sonuc(t, 0.0, False, False)
+        self.t = t
+        phi = math.exp(-dt / self.tau_bz)
+        F = np.array([[1.0, dt, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, phi]])
+        B = np.array([dt * dt / 2, dt, 0.0])
+        sig_a2 = SIG_A_SEYREK ** 2 if imu_seyrek else self.sig_a ** 2 + (self.k_a * a_yukari) ** 2 + ivme_std ** 2
+        Q = np.outer(B, B) * sig_a2
+        Q[2, 2] = self.sig_bz ** 2 * (1 - phi * phi)
+        self.x = F @ self.x + B * a_yukari
+        self.P = F @ self.P @ F.T + Q
+        self._guncelle(h_baro, np.array([1.0, 0.0, 0.0]), self.R_baro)
+        R_gps = self.R_gps + (self.GECIKME_BELIRSIZ_SN * self.x[1]) ** 2
+        nis = self._guncelle(h_gps - self.ofs, np.array([1.0, 0.0, 1.0]), R_gps)
+        if nis > self.esik_z:
+            self.asim += 1
+            if self.asim_bas is None:
+                self.asim_bas = t
+        else:
+            self.asim, self.asim_bas = 0, None
+        anlik = self.asim >= self.anlik_n
+        yavas = (self.x[2] / self.sig_bz) ** 2 > self.esik_bz
+        if self.asim_bas is not None and t - self.asim_bas >= self.sifirla_sn - 1e-6:
+            self.x[0], self.x[2] = h_baro, h_gps - self.ofs - h_baro     # yeni farka yeniden basla
+            self.P = np.diag([self.R_baro, self.P[1, 1], self.R_baro + self.R_gps])
+            self.asim, self.asim_bas = 0, None
+        return self._sonuc(t, nis, anlik, yavas)
+
+    def fark(self):
+        """Kestirilen GPS-barometre yukseklik farki (m, isaretli: + GPS daha yukarida)."""
+        return 0.0 if self.x is None else float(self.x[2])
+
+    def _sonuc(self, t, nis, anlik, yavas):
+        fark = self.fark()
+        if anlik or yavas:
+            if t > self.kilit_bitis or self.tepe is None:
+                self.tepe = dict(nis_z=nis, fark_z=abs(fark))
+            self.kilit_bitis = t + self.kilit_sn
+        alarm = t <= self.kilit_bitis
+        if alarm and self.tepe is not None:
+            self.tepe = dict(nis_z=max(self.tepe['nis_z'], nis), fark_z=max(self.tepe['fark_z'], abs(fark)))
+        return dict(nis_z=nis, fark_z=fark, anlik_z=anlik, yavas_z=yavas, alarm=alarm,
+                    tepe=dict(self.tepe) if (alarm and self.tepe) else None)
+
+
+def basinc_yukseklik(p_hpa, p0_hpa):
+    """Barometre: basinctan yukseklik (m), p0 aninda 0 (standart atmosfer formulu)."""
+    return 44330.77 * (1.0 - (p_hpa / p0_hpa) ** 0.190263)
+
+
 def govde_to_kd(ax_mg, ay_mg, az_mg, roll, pitch, yaw):
     """Govde eksenindeki ivme (milli-g) ve acilar (radyan) -> kuzey/dogu ivmesi (m/s2)."""
     fx, fy, fz = ax_mg * G / 1000, ay_mg * G / 1000, az_mg * G / 1000
@@ -184,6 +326,13 @@ def govde_to_kd(ax_mg, ay_mg, az_mg, roll, pitch, yaw):
     an = cy * cp * fx + (cy * sp * sr - sy * cr) * fy + (cy * sp * cr + sy * sr) * fz
     ae = sy * cp * fx + (sy * sp * sr + cy * cr) * fy + (sy * sp * cr - cy * sr) * fz
     return an, ae
+
+
+def govde_to_yukari(ax_mg, ay_mg, az_mg, roll, pitch):
+    """Govde eksenindeki ivme (milli-g) -> dikey ivme (m/s2, yukari +, yercekimi cikarilmis)."""
+    fx, fy, fz = ax_mg * G / 1000, ay_mg * G / 1000, az_mg * G / 1000
+    cr, sr, cp, sp = math.cos(roll), math.sin(roll), math.cos(pitch), math.sin(pitch)
+    return -(-sp * fx + cp * sr * fy + cp * cr * fz + G)
 
 
 class SpoofIzleyici:
@@ -196,16 +345,24 @@ class SpoofIzleyici:
     GPS_GECIKME_SN = 0.1     # GPS olcumu ~100 ms gecikmeli gelir (SITL: SIM_GPS1_LAG_MS=100; u-blox benzer).
                              # Ivme de ayni kadar geriden alinir; yoksa manevra anlarinda IMU ile GPS celisir.
 
-    def __init__(self, kilit_sn=30.0):
-        self.det = SpoofDedektor(kilit_sn=kilit_sn)
+    def __init__(self, kilit_sn=30.0, det=None, det_z=None):
+        """det, det_z: istenirse farkli ayarli dedektorler (analiz icin); verilmezse varsayilanlar."""
+        self.det = det or SpoofDedektor(kilit_sn=kilit_sn)
+        self.det_z = det_z or IrtifaDedektor(kilit_sn=kilit_sn)
         self.ref = None                  # (enlem0, boylam0, cos(enlem0)): yerel koordinat merkezi
         self.aci = None                  # (roll, pitch, yaw) radyan
         self.ivme = None                 # (kuzey, dogu) m/s2, iki GPS olcumu arasindaki ivmelerin ortalamasi
-        self._ivmeler = deque()          # (saat, kuzey, dogu): bilgisayar saatiyle damgali ivme ornekleri
+        self.ivme_z = 0.0                # ayni araliktaki dikey ivme ortalamasi (yukari +)
+        self.ivme_std_z = 0.0
+        self._ivmeler = deque()          # (saat, kuzey, dogu, yukari): zaman damgali ivme ornekleri
+        self._basinclar = deque()        # (saat, basinc hPa): barometre ornekleri
+        self.p0 = None                   # ilk barometre basinci: barometre yuksekligi buna gore
+        self._son_baro = None
         self._son_gps_saat = None
         self.imu_sayisi = 0              # son GPS araligindaki ivme ornegi sayisi
         self.ivme_std = 0.0              # o orneklerin standart sapmasi (m/s2)
         self.son = None                  # son adimin sonucu
+        self.son_z = None                # yukseklik testinin son sonucu (barometre ya da GPS yuksekligi yoksa None)
         self.aktif = False
 
     def attitude(self, roll, pitch, yaw):
@@ -214,7 +371,8 @@ class SpoofIzleyici:
     def raw_imu(self, xacc, yacc, zacc, saat=None):
         if self.aci is not None:
             an, ae = govde_to_kd(xacc, yacc, zacc, *self.aci)
-            self._ivmeler.append((time.monotonic() if saat is None else saat, an, ae))
+            au = govde_to_yukari(xacc, yacc, zacc, self.aci[0], self.aci[1])
+            self._ivmeler.append((time.monotonic() if saat is None else saat, an, ae, au))
             while len(self._ivmeler) > 500:
                 self._ivmeler.popleft()
 
@@ -224,27 +382,55 @@ class SpoofIzleyici:
         bit = saat - self.GPS_GECIKME_SN
         bas = (self._son_gps_saat - self.GPS_GECIKME_SN) if self._son_gps_saat is not None else bit - 1.0
         self._son_gps_saat = saat
-        sec = [(a, b) for s_, a, b in self._ivmeler if bas < s_ <= bit]
+        sec = [(a, b, c) for s_, a, b, c in self._ivmeler if bas < s_ <= bit]
         self.imu_sayisi = len(sec)
-        self.ivme_std = 0.0
+        self.ivme_std = self.ivme_std_z = 0.0
         while self._ivmeler and self._ivmeler[0][0] <= bit:
             self._ivmeler.popleft()
         if sec:
-            self.ivme = (sum(a for a, _ in sec) / len(sec), sum(b for _, b in sec) / len(sec))
-            if len(sec) > 1:
-                self.ivme_std = math.sqrt(sum((a - self.ivme[0]) ** 2 + (b - self.ivme[1]) ** 2 for a, b in sec)
-                                          / (len(sec) - 1) / 2)
+            n = len(sec)
+            self.ivme = (sum(a for a, _, _ in sec) / n, sum(b for _, b, _ in sec) / n)
+            self.ivme_z = sum(c for _, _, c in sec) / n
+            if n > 1:
+                self.ivme_std = math.sqrt(sum((a - self.ivme[0]) ** 2 + (b - self.ivme[1]) ** 2 for a, b, _ in sec)
+                                          / (n - 1) / 2)
+                self.ivme_std_z = math.sqrt(sum((c - self.ivme_z) ** 2 for _, _, c in sec) / (n - 1))
+        self._baro_bas, self._baro_bit = bas, bit
         return self.ivme if self.ivme is not None else (0.0, 0.0)
 
-    def gps(self, t, lat_e7, lon_e7, vel_cms, cog_cdeg, kapi_acik, saat=None):
+    def baro(self, basinc_hpa, saat=None):
+        """SCALED_PRESSURE geldiginde cagrilir (press_abs, hPa). saat: aracin zaman damgasi (sn)."""
+        if not basinc_hpa or basinc_hpa <= 0:
+            return
+        if self.p0 is None:
+            self.p0 = basinc_hpa
+        self._basinclar.append((time.monotonic() if saat is None else saat, basinc_hpa))
+        while len(self._basinclar) > 200:
+            self._basinclar.popleft()
+
+    def _baro_al(self):
+        """Ivme ile ayni aralikta (GPS gecikmesi kadar geriden) barometre yuksekliklerinin ortalamasi."""
+        sec = [p for s_, p in self._basinclar if self._baro_bas < s_ <= self._baro_bit]
+        while self._basinclar and self._basinclar[0][0] <= self._baro_bit - 1.0:
+            self._basinclar.popleft()
+        if sec:
+            self._son_baro = basinc_yukseklik(sum(sec) / len(sec), self.p0)
+        elif self._basinclar:
+            self._son_baro = basinc_yukseklik(self._basinclar[-1][1], self.p0)
+        return self._son_baro
+
+    def gps(self, t, lat_e7, lon_e7, vel_cms, cog_cdeg, kapi_acik, saat=None, alt_mm=None):
         """GPS_RAW_INT geldiginde cagrilir. Sonuc sozlugu (ya da kapi kapaliysa None) dondurur.
-        t: GPS'in kendi zaman damgasi (sn); saat: mesajin geldigi an (bilgisayar saati, ivme eslemesi icin)."""
+        t: GPS'in kendi zaman damgasi (sn); saat: mesajin geldigi an (bilgisayar saati, ivme eslemesi icin).
+        alt_mm: GPS yuksekligi (mm); verilirse ve barometre geliyorsa yukseklik testi de calisir."""
         saat = time.monotonic() if saat is None else saat
         if not kapi_acik or vel_cms == 65535:
             if self.aktif:
                 self.det.sifirla()
+                self.det_z.sifirla()
             self.aktif = False
             self.son = None
+            self.son_z = None
             return None
         lat, lon = lat_e7 / 1e7, lon_e7 / 1e7
         if self.ref is None:
@@ -256,8 +442,13 @@ class SpoofIzleyici:
         zv = (v * math.cos(rota), v * math.sin(rota))
         self.aktif = True
         ivme = self._ivme_al(saat)
-        self.son = self.det.adim(t, (n, e), zv, ivme, imu_seyrek=self.imu_sayisi < self.MIN_IMU,
-                                 ivme_std=self.ivme_std)
+        seyrek = self.imu_sayisi < self.MIN_IMU
+        sonuc = self.det.adim(t, (n, e), zv, ivme, imu_seyrek=seyrek, ivme_std=self.ivme_std)
+        h_baro = self._baro_al() if self.p0 is not None else None
+        if alt_mm is not None and h_baro is not None:
+            self.son_z = self.det_z.adim(t, h_baro, alt_mm / 1000.0, self.ivme_z, imu_seyrek=seyrek,
+                                         ivme_std=self.ivme_std_z)
+        self.son = birlestir(sonuc, self.son_z)
         return self.son
 
     def tahmin_konum(self):
@@ -270,17 +461,33 @@ class SpoofIzleyici:
 
     def alarm(self, t):
         """Kilit suresi dolmadiysa True (izleme kesilse bile acik alarm kilit suresince surer)."""
-        return t <= self.det.kilit_bitis
+        return t <= self.det.kilit_bitis or t <= self.det_z.kilit_bitis
+
+
+def birlestir(sonuc, sonuc_z):
+    """Yatay ve dikey testin sonucunu tek sozlukte toplar. Yatay alarm yoksa ve dikey varsa tetik 'irtifa'."""
+    s = dict(sonuc)
+    if sonuc_z is None:
+        s.update(nis_z=0.0, fark_z=0.0, irtifa=False)
+        return s
+    s.update(nis_z=sonuc_z['nis_z'], fark_z=sonuc_z['fark_z'], irtifa=sonuc_z['anlik_z'] or sonuc_z['yavas_z'])
+    if sonuc_z['alarm']:
+        if not s['alarm']:
+            s['alarm'], s['tetik'], s['tepe'] = True, 'irtifa', None
+        s['tepe'] = dict(s['tepe'] or {}, **sonuc_z['tepe'])
+    return s
 
 
 TETIK_METNI = {
     'hiz': 'GPS hızı bir anda değişti ama ivmeölçer bunu görmedi.',
     'anlik': 'GPS konumu bir anda sıçradı; ivmeölçer böyle bir hareket görmedi.',
     'yavas': 'GPS konumu yavaşça kaydı; kayma, bir GPS alıcısının kendi hatasından beklenenden büyük ve hız ile ivme bunu açıklamıyor.',
+    'irtifa': 'GPS\'in bildirdiği yükseklik, barometre ve ivmeölçerle çelişiyor.',
 }
 
 
 SAPMA_SINIRI = SpoofDedektor().sapma_siniri
+FARK_Z_SINIRI = IrtifaDedektor().fark_siniri
 
 
 def _tr(x, basamak):
@@ -298,6 +505,16 @@ def spoofing_aciklama(sonuc):
     sapma = tepe.get('sapma') or 0.0
     nis = tepe.get('nis') or 0.0
     nis_v = tepe.get('nis_v') or 0.0
+    if tetik == 'irtifa':
+        return {'tur': 'spoofing', 'baslik': 'GPS spoofing şüphesi (yükseklik)',
+                'cumle': TETIK_METNI[tetik] + ' Olası neden: sahte GPS sinyali.',
+                'kisa': 'GPS yüksekliği barometreyle çelişiyor',
+                'oneri': {'metin': 'GPS yüksekliğine güvenme; barometre yüksekliğini kullan.',
+                          'alt': 'Yatay konumu da başka bir kaynakla doğrula.'},
+                'anons': 'GPS spoofing şüphesi. Yükseklik tutmuyor.',
+                'cipler': [['TEST', 'yükseklik'],
+                           ['EN YÜKSEK YÜKSEKLİK NIS', f"{_tr(tepe.get('nis_z') or 0.0, 1)} (sınır {_tr(CHI2_99_1SD, 2)})"],
+                           ['EN BÜYÜK GPS–BAROMETRE FARKI', f"{_tr(tepe.get('fark_z') or 0.0, 1)} m (sınır {_tr(FARK_Z_SINIRI, 1)})"]]}
     return {'tur': 'spoofing', 'baslik': 'GPS spoofing şüphesi',
             'cumle': TETIK_METNI[tetik] + ' Olası neden: sahte GPS sinyali.',
             'kisa': {'hiz': 'GPS hızı ile ivmeölçer çelişiyor', 'anlik': 'GPS konumu sıçradı',

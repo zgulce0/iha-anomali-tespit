@@ -29,6 +29,8 @@ spoof_aktif = Gauge('drone_gps_spoofing_active', 'Spoofing izlemesi çalışıyo
 spoof_nis = Gauge('drone_gps_spoof_nis', 'GPS konum yeniliği NIS, son 5 sn en yüksek (chi-kare, sınır 9.21)', ['drone_id'])
 spoof_nis_v = Gauge('drone_gps_spoof_nis_vel', 'GPS hız yeniliği NIS, son 5 sn en yüksek (chi-kare, sınır 13.82, art arda 2 ölçüm)', ['drone_id'])
 spoof_kayma = Gauge('drone_gps_spoof_drift_m', 'Kestirilen GPS sapması, son 5 sn en yüksek (m, sınır ~7.3)', ['drone_id'])
+spoof_nis_z = Gauge('drone_gps_spoof_nis_alt', 'GPS yükseklik yeniliği NIS, son 5 sn en yüksek (chi-kare 1 sd, sınır 6.63)', ['drone_id'])
+spoof_fark_z = Gauge('drone_gps_spoof_alt_diff_m', 'Kestirilen GPS-barometre yükseklik farkı (mutlak), son 5 sn en yüksek (m, sınır ~11.7)', ['drone_id'])
 
 # Anomali modeli (Mahalanobis): normal uçuştan ne kadar uzak?
 anomali_skor = Gauge('drone_anomaly_score', 'Modelin skoru: mesafe / alarm eşiği (1.0 = sınır, üstü anomali)', ['drone_id'])
@@ -77,7 +79,7 @@ spoof_durum = {'alarm': False, 'sonuc': None}
 # Prometheus değerleri birkaç saniyede bir okur; sıçrama anındaki yüksek NIS ise yarım saniye sürer.
 # Anlık değer yazılırsa Grafana bu tepeleri kaçırır. Bu yüzden son TEPE_SN saniyenin en yükseği yazılır.
 TEPE_SN = 5.0
-spoof_gecmis = deque()      # (saat, nis, nis_v, sapma)
+spoof_gecmis = deque()      # (saat, nis, nis_v, sapma, nis_z, |fark_z|)
 
 
 def spoof_yaz(sonuc, alarm):
@@ -87,16 +89,18 @@ def spoof_yaz(sonuc, alarm):
     nan = float('nan')
     if sonuc is None:
         spoof_gecmis.clear()
-        for g in (spoof_nis, spoof_nis_v, spoof_kayma):
+        for g in (spoof_nis, spoof_nis_v, spoof_kayma, spoof_nis_z, spoof_fark_z):
             g.labels(drone_id=DRONE_ID).set(nan)
         return
     an = time.monotonic()
-    spoof_gecmis.append((an, sonuc['nis'], sonuc['nis_v'], sonuc['sapma']))
+    spoof_gecmis.append((an, sonuc['nis'], sonuc['nis_v'], sonuc['sapma'], sonuc['nis_z'], abs(sonuc['fark_z'])))
     while spoof_gecmis and spoof_gecmis[0][0] < an - TEPE_SN:
         spoof_gecmis.popleft()
     spoof_nis.labels(drone_id=DRONE_ID).set(max(x[1] for x in spoof_gecmis))
     spoof_nis_v.labels(drone_id=DRONE_ID).set(max(x[2] for x in spoof_gecmis))
     spoof_kayma.labels(drone_id=DRONE_ID).set(max(x[3] for x in spoof_gecmis))
+    spoof_nis_z.labels(drone_id=DRONE_ID).set(max(x[4] for x in spoof_gecmis))
+    spoof_fark_z.labels(drone_id=DRONE_ID).set(max(x[5] for x in spoof_gecmis))
 
 
 def anomali_yaz(skor, alarm, tur=None):
@@ -113,7 +117,8 @@ def spoof_ozet():
     s_ = spoof_durum['sonuc']
     if not spoof.aktif or s_ is None:
         return 'spoof: izleme kapalı'
-    return (f"spoof NIS {s_['nis']:.1f} hızNIS {s_['nis_v']:.1f} sapma {s_['sapma']:.1f} m"
+    return (f"spoof NIS {s_['nis']:.1f} hızNIS {s_['nis_v']:.1f} sapma {s_['sapma']:.1f} m "
+            f"yükseklik NIS {s_['nis_z']:.1f} fark {s_['fark_z']:.1f} m"
             + (" ALARM" if spoof_durum['alarm'] else ""))
 
 
@@ -121,6 +126,10 @@ def spoof_ozet():
 # arasındaki ivmenin ortalaması alınır. Seyrek gelirse ani bir sarsıntı yanlış ölçülür.
 # Not: MAVProxy'de "set streamrate -1" yazılmazsa MAVProxy bu hızları kendi değeriyle ezer.
 ISTENEN_HIZLAR = {27: 50, 30: 50, 24: 10,     # RAW_IMU, ATTITUDE: 50 Hz; GPS_RAW_INT: 10 Hz
+                  29: 10,                     # SCALED_PRESSURE (barometre): yükseklik spoofing testi için
+                  # Anomali modelinin girdileri: motor PWM, batarya, yer hızı. MAVProxy'de "set streamrate -1"
+                  # iken (baslat.sh bunu ayarlıyor) bunlar istenmezse hiç gelmez ve model karar veremez.
+                  36: 4, 147: 4, 74: 4,       # SERVO_OUTPUT_RAW, BATTERY_STATUS, VFR_HUD
                   33: 10, 164: 5}             # harita için: GLOBAL_POSITION_INT 10 Hz, SIMSTATE (gerçek konum, sadece SITL) 5 Hz
 
 
@@ -246,7 +255,7 @@ def main():
             # GPS_RAW_INT ve RAW_IMU zaman damgalari ayni saatten (aracin acilistan beri gecen sure); ivmeyi
             # GPS ile eslemek icin bu kullanilir.
             sonuc = spoof.gps(t_gps, mesaj.lat, mesaj.lon, mesaj.vel, mesaj.cog, kapi,
-                              saat=t_gps if mesaj.time_usec else None)
+                              saat=t_gps if mesaj.time_usec else None, alt_mm=mesaj.alt)
             if sonuc is not None:
                 seyrek_sayac = seyrek_sayac + 1 if spoof.imu_sayisi < spoof.MIN_IMU else 0
                 if seyrek_sayac == 25:      # ~5 sn boyunca seyrek
@@ -261,13 +270,17 @@ def main():
             if spoof_alarm_simdi and not spoof_durum['alarm']:
                 s_ = spoof_durum['sonuc'] or {}
                 print(f"{datetime.now():%H:%M:%S} GPS SPOOFING ALARMI BAŞLADI | test {s_.get('tetik')} | "
-                      f"NIS {s_.get('nis', 0):.1f} | hız NIS {s_.get('nis_v', 0):.1f} | GPS sapması {s_.get('sapma', 0):.1f} m", flush=True)
+                      f"NIS {s_.get('nis', 0):.1f} | hız NIS {s_.get('nis_v', 0):.1f} | GPS sapması {s_.get('sapma', 0):.1f} m | "
+                      f"yükseklik NIS {s_.get('nis_z', 0):.1f} | GPS-baro farkı {s_.get('fark_z', 0):.1f} m", flush=True)
             elif spoof_durum['alarm'] and not spoof_alarm_simdi:
                 print(f"{datetime.now():%H:%M:%S} GPS spoofing alarmı bitti", flush=True)
             spoof_durum['alarm'] = spoof_alarm_simdi
 
         elif tip == 'ATTITUDE':
             spoof.attitude(mesaj.roll, mesaj.pitch, mesaj.yaw)
+
+        elif tip == 'SCALED_PRESSURE':
+            spoof.baro(mesaj.press_abs, saat=mesaj.time_boot_ms / 1000 if mesaj.time_boot_ms else None)
 
         elif tip == 'RAW_IMU':
             spoof.raw_imu(mesaj.xacc, mesaj.yacc, mesaj.zacc,

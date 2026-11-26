@@ -1,0 +1,21 @@
+gps,test,sinirin_yarisini_gecme_%,yuzde99_deger_sinira_orani
+hatasiz,konum NIS,0.0,0.0006320866589942764
+hatasiz,hiz NIS,0.0,0.011422283261584832
+hatasiz,GPS sapmasi (m),0.0,0.009851300139052211
+hatasiz,yukseklik NIS,0.0,0.0005764372234260811
+hatasiz,GPS-baro farki (m),0.0,0.0013609742498887592
+"gercekci, tau 30 sn",konum NIS,0.0,0.15229758624329945
+"gercekci, tau 30 sn",hiz NIS,1.6399887672002247,0.5618407767266005
+"gercekci, tau 30 sn",GPS sapmasi (m),0.9590002808199943,0.47879594704274675
+"gercekci, tau 30 sn",yukseklik NIS,3.9595619208087616,0.7853773227715507
+"gercekci, tau 30 sn",GPS-baro farki (m),13.247683235046331,0.6308110882161755
+"gercekci, tau 100 sn",konum NIS,0.0,0.0983008719407974
+"gercekci, tau 100 sn",hiz NIS,1.6638584667228304,0.5631073712666915
+"gercekci, tau 100 sn",GPS sapmasi (m),0.7146868857062623,0.38786268310435834
+"gercekci, tau 100 sn",yukseklik NIS,3.378264532434709,0.733376752879948
+"gercekci, tau 100 sn",GPS-baro farki (m),2.725358045492839,0.414181111729272
+"gercekci, tau 300 sn",konum NIS,0.0,0.0927789806062809
+"gercekci, tau 300 sn",hiz NIS,1.5360853692782928,0.5553358812172708
+"gercekci, tau 300 sn",GPS sapmasi (m),0.0,0.31294690175342244
+"gercekci, tau 300 sn",yukseklik NIS,3.3136759337264814,0.73394356056224
+"gercekci, tau 300 sn",GPS-baro farki (m),4.804830103903398,0.49528642527502864

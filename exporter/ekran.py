@@ -177,7 +177,14 @@ class Ucus:
                 sure = (a['bit_sn'] if a['bit_sn'] is not None else t) - a['bas_sn']
                 if sure < GPS_BAGLI_SN and not a.get('gps_bagli'):
                     self.gps_bagli_yap(a)
-        r['tip'], r['etiket'], r['baslik'], r['ne'] = jam['tur'], 'GPS', jam['baslik'], jam['kisa']
+        # Bir GPS alarmı sürerken başka bir belirti de görülebilir (ör. önce konum sıçradı, sonra yükseklik
+        # tuttu). Hepsi sırayla saklanır; birden fazlaysa başlık genel olur, rapor hepsini listeler.
+        gorulen = r.setdefault('gorulen', [])
+        if not any(g['ne'] == jam['kisa'] for g in gorulen):
+            gorulen.append({'saat': _hms(saat), 'ne': jam['kisa']})
+        baslik = jam['baslik'] if len(gorulen) == 1 else (
+            'GPS spoofing şüphesi (birden fazla belirti)' if jam['tur'] == 'spoofing' else jam['baslik'])
+        r['tip'], r['etiket'], r['baslik'], r['ne'] = jam['tur'], 'GPS', baslik, jam['kisa']
         r['kanit'] = {'cumle': jam['cumle'], 'saat': _hms(saat), 'uydu': uydu, 'fix': fix, 'cipler': jam.get('cipler'),
                       'oneri': jam['oneri'], 'guven': None, 'guven_kaynak': None, 'sinyaller': [], 'telafi': []}
 

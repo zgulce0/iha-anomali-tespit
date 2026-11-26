@@ -38,4 +38,4 @@ groups:
           severity: critical
         annotations:
           summary: "GPS spoofing şüphesi ({{ $labels.drone_id }})"
-          description: "GPS konumu/hızı ile ivmeölçer çelişiyor. Araç sandığı yerde olmayabilir; konuma güvenme."
+          description: "GPS konumu, hızı ya da yüksekliği; ivmeölçer ve barometreyle çelişiyor. Araç sandığı yerde olmayabilir; konuma güvenme."

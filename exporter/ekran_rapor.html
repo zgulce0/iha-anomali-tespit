@@ -264,7 +264,8 @@ function alarmKart(a, u){
   let govde = "";
   if (gps && k.cipler){
     const ek = [];
-    if (a.gps_hata_maks !== null && a.gps_hata_maks !== undefined) ek.push(["GPS'İN EN BÜYÜK HATASI (SİMÜLASYONDA ÖLÇÜLEN)", sayi(a.gps_hata_maks, 1) + " m"]);
+    if (a.gorulen && a.gorulen.length > 1) ek.push(["ALARM BOYUNCA GÖRÜLEN BELİRTİLER", a.gorulen.map((g) => g.saat + " " + g.ne).join(" · ")]);
+    if (a.gps_hata_maks !== null && a.gps_hata_maks !== undefined) ek.push(["GPS'İN EN BÜYÜK YATAY HATASI (SİMÜLASYONDA ÖLÇÜLEN)", sayi(a.gps_hata_maks, 1) + " m"]);
     if (a.guvenilir_hata_m !== null && a.guvenilir_hata_m !== undefined) ek.push(["SON GÜVENİLİR KONUMUN GERÇEK YERE UZAKLIĞI", sayi(a.guvenilir_hata_m, 1) + " m"]);
     govde += '<div class="kaydir"><table><thead><tr><th>ÖLÇÜM</th><th class="m">DEĞER</th></tr></thead><tbody>' +
       k.cipler.map((c) => '<tr class="on"><td>' + esc(c[0]) + '</td><td class="m">' + esc(c[1]) + '</td></tr>').join("") +
